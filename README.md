@@ -55,8 +55,22 @@ Ensure you have **Node.js 18+** installed on your system.
 
 - `npm run dev`: Starts the Node/Express backend development server with hot TypeScript execution (`tsx server.ts`).
 - `npm run build`: Bundles the React Vite frontend and builds the Express server into `dist/server.cjs`.
-- `npm run start`: Runs the production CommonJS server on port 3000.
+- `npm run start`: Runs the production CommonJS server on port 3000 (includes auto-build failsafe).
 - `npm run lint`: Validates TypeScript type checking across the codebase.
+
+---
+
+## 🌐 Deploying on Render
+
+To deploy on **Render**, configure your Web Service settings in the Render Dashboard as follows:
+
+- **Environment**: `Node`
+- **Build Command**: `npm install && npm run build` *(or `bun install && bun run build`)*
+- **Start Command**: `npm start`
+- **Environment Variables**:
+  - `GEMINI_API_KEY`: Your Google Gemini API Key
+
+> 💡 **Why this fix works**: Render requires running `npm run build` during the build phase so `esbuild` compiles `server.ts` into `dist/server.cjs`. We have also included an automatic build failsafe in `npm start` so that if `dist/server.cjs` is ever missing, it automatically builds it before starting the server.
 
 ---
 
