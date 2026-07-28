@@ -1,0 +1,6 @@
+{
+  "name": "IntraMind RAG",
+  "description": "Private PDF Document Q&A with Vector Embeddings, Semantic Search & Interactive Citations",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
