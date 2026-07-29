@@ -10,6 +10,7 @@ import { fetchApi } from '../lib/api';
 interface DocumentLibraryProps {
   documents: PDFDocument[];
   selectedDocIds: string[];
+  theme?: 'light' | 'dark';
   onToggleDocSelection: (docId: string) => void;
   onSelectAllDocs: () => void;
   onDeselectAllDocs: () => void;
@@ -27,6 +28,7 @@ interface DocumentLibraryProps {
 export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   documents,
   selectedDocIds,
+  theme = 'dark',
   onToggleDocSelection,
   onSelectAllDocs,
   onDeselectAllDocs,
@@ -139,15 +141,17 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   const allSelected = selectedDocIds.length === 0 || selectedDocIds.length === documents.length;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col h-full space-y-3.5 shadow-xs">
+    <div className={`rounded-2xl p-3.5 sm:p-5 flex flex-col h-full min-h-0 space-y-3 shadow-xs overflow-hidden border ${
+      theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+    }`}>
       {/* Header section */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+      <div className={`flex items-center justify-between pb-2.5 border-b shrink-0 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
         <div>
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Layers className="w-4 h-4 text-slate-800" />
+          <h2 className={`text-sm font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            <Layers className="w-4 h-4 text-indigo-400" />
             Document Library ({documents.length})
           </h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className={`text-[11px] mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             Active RAG Scope: {selectedDocIds.length === 0 ? 'All Documents' : `${selectedDocIds.length} Selected`}
           </p>
         </div>
@@ -155,64 +159,19 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
         {documents.length > 0 && (
           <button
             onClick={allSelected ? onDeselectAllDocs : onSelectAllDocs}
-            className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+              theme === 'dark'
+                ? 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border-slate-700'
+                : 'text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border-slate-200'
+            }`}
           >
             {allSelected ? 'Clear Scope' : 'Select All'}
           </button>
         )}
       </div>
 
-      {/* Upload Drag & Drop Area */}
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-3.5 text-center cursor-pointer transition-all group ${
-          isUploading
-            ? 'border-sky-400 bg-sky-50 shadow-xs animate-pulse'
-            : 'border-sky-200 hover:border-sky-400 bg-sky-50/40 hover:bg-sky-50/80'
-        }`}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.json,.txt,.md,.csv,.js,.py,.ts"
-          className="hidden"
-        />
-        <div className="flex flex-col items-center justify-center space-y-1.5">
-          <div className="p-2 bg-white group-hover:bg-sky-100 text-sky-600 rounded-xl border border-sky-200 transition-all shadow-2xs">
-            {isUploading ? (
-              <Loader2 className="w-4 h-4 text-sky-600 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4" />
-            )}
-          </div>
-          <div>
-            <p className="text-xs font-bold text-slate-800">
-              {isUploading
-                ? `Uploading & Indexing ${uploadingFileName || 'file'}...`
-                : 'Upload Files for RAG Search'}
-            </p>
-            {isUploading ? (
-              <p className="text-[11px] text-sky-700 font-medium mt-0.5">
-                Parsing document, generating vector embeddings & indexing into RAG store...
-              </p>
-            ) : (
-              <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
-                <span className="px-1.5 py-0.5 bg-rose-100/70 text-rose-800 rounded text-[9px] font-bold">PDF</span>
-                <span className="px-1.5 py-0.5 bg-blue-100/70 text-blue-800 rounded text-[9px] font-bold">DOCX</span>
-                <span className="px-1.5 py-0.5 bg-purple-100/70 text-purple-800 rounded text-[9px] font-bold">PNG / JPG</span>
-                <span className="px-1.5 py-0.5 bg-amber-100/70 text-amber-800 rounded text-[9px] font-bold">JSON</span>
-                <span className="px-1.5 py-0.5 bg-slate-200/80 text-slate-800 rounded text-[9px] font-bold">TXT / Code</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {uploadSuccessNotice && (
-        <div className="bg-emerald-50 border border-emerald-200/90 text-emerald-950 p-3 rounded-xl flex items-center justify-between text-xs font-medium shadow-2xs">
+        <div className="bg-emerald-50 border border-emerald-200/90 text-emerald-950 p-3 rounded-xl flex items-center justify-between text-xs font-medium shadow-2xs shrink-0">
           <div className="flex items-center space-x-2.5 min-w-0">
             <div className="p-1 bg-emerald-500 text-white rounded-lg shrink-0">
               <CheckCircle2 className="w-4 h-4" />
@@ -238,69 +197,243 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
       )}
 
       {uploadError && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs flex items-center space-x-2">
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs flex items-center space-x-2 shrink-0">
           <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
           <span>{uploadError}</span>
         </div>
       )}
 
-      {/* Search & Filter bar if documents exist */}
-      {documents.length > 0 && (
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Filter files by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 bg-white border-2 border-slate-300 rounded-lg text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-500/20 antialiased shadow-2xs"
-            />
+      {/* Full-Screen Upload Dropzone when empty, or compact dropzone when documents exist */}
+      {documents.length === 0 ? (
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`relative flex-1 border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-4 group overflow-hidden shadow-xl ${
+            theme === 'dark'
+              ? isUploading
+                ? 'border-indigo-400 bg-slate-900 shadow-indigo-500/30 animate-pulse'
+                : 'border-indigo-500/40 hover:border-indigo-400 bg-gradient-to-b from-slate-900/95 via-slate-900 to-indigo-950/80 hover:bg-slate-900 text-white shadow-indigo-950/50'
+              : isUploading
+                ? 'border-indigo-500 bg-indigo-50 shadow-indigo-500/20 animate-pulse'
+                : 'border-indigo-300 hover:border-indigo-500 bg-gradient-to-b from-indigo-50/80 via-white to-purple-50/80 hover:bg-indigo-50/90 text-slate-900 shadow-indigo-500/10'
+          }`}
+        >
+          {/* Pleasant Ambient SVG Wave Animation Overlay */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl">
+            <svg
+              className={`absolute -bottom-2 left-0 w-[150%] h-32 ${theme === 'dark' ? 'opacity-25' : 'opacity-35'} animate-wave-1`}
+              viewBox="0 0 1440 320"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="docWave1" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity="0.8" />
+                  <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.9" />
+                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.7" />
+                </linearGradient>
+              </defs>
+              <path
+                fill="url(#docWave1)"
+                d="M0,192L48,181.3C96,171,192,149,288,160C384,171,480,213,576,218.7C672,224,768,192,864,181.3C960,171,1056,181,1152,192C1248,203,1344,213,1392,218.7L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
+              />
+            </svg>
+            <svg
+              className={`absolute -bottom-1 left-0 w-[150%] h-24 ${theme === 'dark' ? 'opacity-20' : 'opacity-25'} animate-wave-2`}
+              viewBox="0 0 1440 320"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="docWave2" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#a855f7" stopOpacity="0.7" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
+                </linearGradient>
+              </defs>
+              <path
+                fill="url(#docWave2)"
+                d="M0,96L60,117.3C120,139,240,181,360,192C480,203,600,181,720,165.3C840,149,960,139,1080,149.3C1200,160,1320,192,1380,208L1440,224L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"
+              />
+            </svg>
           </div>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none cursor-pointer font-medium"
-          >
-            <option value="all">All Formats</option>
-            <option value="pdf">PDF</option>
-            <option value="docx">Word (.docx)</option>
-            <option value="image">Images</option>
-            <option value="json">JSON</option>
-            <option value="txt">Text & Code</option>
-          </select>
-        </div>
-      )}
 
-      {/* Document List */}
-      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-        {documents.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 space-y-3 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-            <div className="p-3 bg-white rounded-2xl shadow-2xs border border-slate-200">
-              <Upload className="w-6 h-6 text-slate-400" />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.json,.txt,.md,.csv,.js,.py,.ts"
+            className="hidden"
+          />
+
+          <div className="relative z-10 flex flex-col items-center justify-center space-y-4">
+            <div className={`p-4 rounded-2xl border transition-all shadow-md group-hover:scale-105 ${
+              theme === 'dark'
+                ? 'bg-indigo-950/70 border-indigo-500/40 text-indigo-300 group-hover:bg-indigo-900/80 group-hover:border-indigo-400'
+                : 'bg-indigo-100/90 border-indigo-200 text-indigo-600 group-hover:bg-indigo-200/90'
+            }`}>
+              {isUploading ? (
+                <Loader2 className="w-9 h-9 animate-spin text-indigo-400" />
+              ) : (
+                <Upload className="w-9 h-9" />
+              )}
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-700">No Documents in Vector Store</p>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
-                Upload your PDF reports, Word docs, PNG images, JSON data, or TXT files above to begin instant AI-powered vector querying.
+            <div className="max-w-md space-y-1.5">
+              <h3 className={`text-base sm:text-lg font-extrabold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                {isUploading
+                  ? `Uploading & Indexing ${uploadingFileName || 'file'}...`
+                  : 'Drag & Drop your files here to Upload'}
+              </h3>
+              <p className={`text-xs leading-relaxed font-medium ${theme === 'dark' ? 'text-indigo-200/90' : 'text-slate-600'}`}>
+                {isUploading
+                  ? 'Parsing document text, generating vector embeddings & storing chunk indices in RAG store...'
+                  : 'Upload PDF reports, Word (.docx), PNG/JPG images, JSON data, or TXT/Code files to index into your RAG vector database.'}
               </p>
             </div>
+
+            <button
+              type="button"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer pointer-events-none"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Select File from Computer</span>
+            </button>
+
+            <div className="flex items-center justify-center gap-2 pt-2 flex-wrap max-w-lg">
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                theme === 'dark' ? 'bg-rose-500/20 text-rose-300 border-rose-400/30' : 'bg-rose-100 text-rose-700 border-rose-200'
+              }`}>PDF</span>
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                theme === 'dark' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' : 'bg-blue-100 text-blue-700 border-blue-200'
+              }`}>Word (.docx)</span>
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                theme === 'dark' ? 'bg-purple-500/20 text-purple-300 border-purple-400/30' : 'bg-purple-100 text-purple-700 border-purple-200'
+              }`}>PNG / JPG</span>
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                theme === 'dark' ? 'bg-amber-500/20 text-amber-300 border-amber-400/30' : 'bg-amber-100 text-amber-800 border-amber-200'
+              }`}>JSON</span>
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                theme === 'dark' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+              }`}>TXT / Code</span>
+            </div>
           </div>
-        ) : filteredDocs.length === 0 ? (
-          <div className="p-6 text-center text-xs text-slate-500">
-            No documents matching "{searchTerm}" or selected format filter.
+        </div>
+      ) : (
+        <>
+          {/* Compact Upload Drag & Drop Area */}
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition-all group shrink-0 overflow-hidden shadow-sm ${
+              theme === 'dark'
+                ? isUploading
+                  ? 'border-indigo-400 bg-slate-900 text-white shadow-xs animate-pulse'
+                  : 'border-indigo-500/40 hover:border-indigo-400 bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950/70 text-white shadow-xs'
+                : isUploading
+                  ? 'border-indigo-500 bg-indigo-50 text-slate-900 shadow-xs animate-pulse'
+                  : 'border-indigo-300 hover:border-indigo-500 bg-gradient-to-b from-indigo-50/70 via-white to-purple-50/70 text-slate-900 shadow-xs'
+            }`}
+          >
+            {/* Ambient Wave Layer for Compact Box */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-xl">
+              <svg
+                className={`absolute -bottom-1 left-0 w-[150%] h-14 ${theme === 'dark' ? 'opacity-20' : 'opacity-25'} animate-wave-1`}
+                viewBox="0 0 1440 320"
+                preserveAspectRatio="none"
+              >
+                <path
+                  fill={theme === 'dark' ? '#6366f1' : '#8b5cf6'}
+                  d="M0,192L48,181.3C96,171,192,149,288,160C384,171,480,213,576,218.7C672,224,768,192,864,181.3C960,171,1056,181,1152,192C1248,203,1344,213,1392,218.7L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
+                />
+              </svg>
+            </div>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.json,.txt,.md,.csv,.js,.py,.ts"
+              className="hidden"
+            />
+            <div className="relative z-10 flex items-center justify-center space-x-2.5">
+              <div className={`p-1.5 rounded-lg border shrink-0 ${
+                theme === 'dark'
+                  ? 'bg-indigo-950/70 border-indigo-500/40 text-indigo-300'
+                  : 'bg-indigo-100/90 border-indigo-200 text-indigo-600'
+              }`}>
+                {isUploading ? (
+                  <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+              </div>
+              <div className="text-left">
+                <p className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  {isUploading
+                    ? `Uploading & Indexing ${uploadingFileName || 'file'}...`
+                    : 'Upload additional files (PDF, DOCX, PNG, JSON, TXT)'}
+                </p>
+                <p className={`text-[10px] ${theme === 'dark' ? 'text-indigo-200/80' : 'text-slate-500'}`}>
+                  Drag & drop or click to browse files from device
+                </p>
+              </div>
+            </div>
           </div>
-        ) : (
-          filteredDocs.map((doc) => {
-            const isSelected = selectedDocIds.length === 0 || selectedDocIds.includes(doc.id);
+
+          {/* Search & Filter bar */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Filter files by name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full pl-8 pr-3 py-1.5 border-2 rounded-lg text-xs font-medium focus:outline-none focus:border-indigo-500 antialiased shadow-2xs ${
+                  theme === 'dark'
+                    ? 'bg-slate-950 border-slate-700 text-white placeholder:text-slate-500'
+                    : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+                }`}
+              />
+            </div>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className={`px-2.5 py-1.5 border rounded-lg text-xs focus:outline-none cursor-pointer font-medium ${
+                theme === 'dark'
+                  ? 'bg-slate-950 border-slate-700 text-slate-200'
+                  : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}
+            >
+              <option value="all">All Formats</option>
+              <option value="pdf">PDF</option>
+              <option value="docx">Word (.docx)</option>
+              <option value="image">Images</option>
+              <option value="json">JSON</option>
+              <option value="txt">Text & Code</option>
+            </select>
+          </div>
+
+          {/* Document List */}
+          <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0">
+            {filteredDocs.length === 0 ? (
+              <div className={`p-6 text-center text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                No documents matching "{searchTerm}" or selected format filter.
+              </div>
+            ) : (
+              filteredDocs.map((doc) => {
+                const isSelected = selectedDocIds.length === 0 || selectedDocIds.includes(doc.id);
 
             return (
               <div
                 key={doc.id}
                 className={`p-3 rounded-xl border transition-all ${
                   isSelected
-                    ? 'bg-sky-50/40 border-sky-300 shadow-2xs'
-                    : 'bg-white border-slate-200 opacity-75 hover:opacity-100'
+                    ? theme === 'dark'
+                      ? 'bg-indigo-950/60 border-indigo-700 text-slate-100 shadow-2xs'
+                      : 'bg-sky-50/40 border-sky-300 text-slate-900 shadow-2xs'
+                    : theme === 'dark'
+                      ? 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700'
+                      : 'bg-white border-slate-200 text-slate-800 opacity-75 hover:opacity-100'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -308,13 +441,13 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   <div className="flex items-start space-x-2.5 min-w-0 flex-1">
                     <button
                       onClick={() => onToggleDocSelection(doc.id)}
-                      className="mt-1 text-sky-600 hover:text-sky-700 cursor-pointer shrink-0"
+                      className="mt-1 text-indigo-500 hover:text-indigo-400 cursor-pointer shrink-0"
                       title={isSelected ? 'Remove from query scope' : 'Include in query scope'}
                     >
                       {isSelected ? (
-                        <CheckSquare className="w-4 h-4 text-sky-600" />
+                        <CheckSquare className="w-4 h-4 text-indigo-500" />
                       ) : (
-                        <Square className="w-4 h-4 text-slate-300" />
+                        <Square className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-600' : 'text-slate-300'}`} />
                       )}
                     </button>
 
@@ -323,7 +456,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center space-x-1.5 flex-wrap">
-                        <span className="font-semibold text-xs text-slate-800 truncate max-w-[190px]">
+                        <span className={`font-semibold text-xs truncate max-w-[190px] ${theme === 'dark' ? 'text-slate-100' : 'text-slate-800'}`}>
                           {doc.name}
                         </span>
                         {doc.id === lastUploadedDocId && (
@@ -433,6 +566,8 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
           })
         )}
       </div>
+        </>
+      )}
     </div>
   );
 };

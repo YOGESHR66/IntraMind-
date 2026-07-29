@@ -9,6 +9,7 @@ interface DocumentViewerProps {
   highlightedCitation: Citation | null;
   chunks: DocumentChunk[];
   isLoadingChunks: boolean;
+  theme?: 'light' | 'dark';
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
@@ -18,6 +19,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   highlightedCitation,
   chunks,
   isLoadingChunks,
+  theme = 'dark',
 }) => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -46,12 +48,16 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col h-full space-y-3 shadow-xs">
+    <div className={`rounded-xl p-4 flex flex-col h-full space-y-3 shadow-xs border ${
+      theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+    }`}>
       {/* Top Controls Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b ${
+        theme === 'dark' ? 'border-slate-800' : 'border-slate-200'
+      }`}>
         <div className="flex items-center space-x-2 min-w-0">
-          <FileText className="w-4 h-4 text-slate-700 shrink-0" />
-          <span className="text-xs font-bold text-slate-800">Active Document:</span>
+          <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Active Document:</span>
           {documents.length > 0 ? (
             <select
               value={activeDoc?.id || ''}
@@ -62,7 +68,11 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   setCurrentPage(1);
                 }
               }}
-              className="bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-sky-500 max-w-[220px] truncate cursor-pointer"
+              className={`text-xs font-semibold border rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-indigo-500 max-w-[220px] truncate cursor-pointer ${
+                theme === 'dark'
+                  ? 'bg-slate-950 text-slate-100 border-slate-700'
+                  : 'bg-slate-50 text-slate-800 border-slate-200'
+              }`}
             >
               {documents.map(d => (
                 <option key={d.id} value={d.id}>

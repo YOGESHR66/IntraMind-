@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Settings, Sliders, Sparkles, Database, ShieldCheck } from 'lucide-react';
+import { X, Settings, Sliders, Sparkles, Database, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { RAGSettings, PDFDocument } from '../types';
 
 interface SettingsModalProps {
@@ -8,6 +8,8 @@ interface SettingsModalProps {
   settings: RAGSettings;
   onUpdateSettings: (newSettings: Partial<RAGSettings>) => void;
   documents: PDFDocument[];
+  theme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark') => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -16,6 +18,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onUpdateSettings,
   documents,
+  theme,
+  setTheme,
 }) => {
   if (!isOpen) return null;
 
@@ -26,7 +30,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-slate-200">
           <div className="flex items-center space-x-2">
             <Settings className="w-5 h-5 text-slate-800" />
-            <h3 className="font-bold text-sm text-slate-900">RAG Pipeline Hyperparameters</h3>
+            <h3 className="font-bold text-sm text-slate-900">RAG Settings & Workspace Theme</h3>
           </div>
           <button
             onClick={onClose}
@@ -34,6 +38,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Theme Selector Section */}
+        <div className="space-y-2 bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+          <label className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+            {theme === 'dark' ? <Moon className="w-4 h-4 text-indigo-600" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            <span>Workspace Theme Mode</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setTheme('dark')}
+              className={`p-2.5 rounded-xl border text-left flex items-center space-x-2.5 transition-all cursor-pointer ${
+                theme === 'dark'
+                  ? 'border-indigo-600 bg-white text-indigo-950 ring-2 ring-indigo-500/20 font-bold shadow-xs'
+                  : 'border-slate-200 bg-slate-100/60 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
+                <Moon className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Dark Mode</p>
+                <p className="text-[10px] text-slate-500 font-medium">White upload box</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme('light')}
+              className={`p-2.5 rounded-xl border text-left flex items-center space-x-2.5 transition-all cursor-pointer ${
+                theme === 'light'
+                  ? 'border-amber-500 bg-white text-amber-950 ring-2 ring-amber-500/20 font-bold shadow-xs'
+                  : 'border-slate-200 bg-slate-100/60 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <div className="p-1.5 bg-amber-100 text-amber-800 rounded-lg">
+                <Sun className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Light Mode</p>
+                <p className="text-[10px] text-slate-500 font-medium">Black upload box</p>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Model Info */}

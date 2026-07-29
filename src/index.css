@@ -97,6 +97,27 @@ body {
   animation: float-subtle 3s ease-in-out infinite;
 }
 
+/* Pleasant background wave animation */
+@keyframes wave-flow-1 {
+  0% { transform: translateX(0) scaleY(1); }
+  50% { transform: translateX(-20px) scaleY(1.08); }
+  100% { transform: translateX(0) scaleY(1); }
+}
+
+@keyframes wave-flow-2 {
+  0% { transform: translateX(0) scaleY(1); }
+  50% { transform: translateX(25px) scaleY(0.92); }
+  100% { transform: translateX(0) scaleY(1); }
+}
+
+.animate-wave-1 {
+  animation: wave-flow-1 8s ease-in-out infinite;
+}
+
+.animate-wave-2 {
+  animation: wave-flow-2 12s ease-in-out infinite;
+}
+
 /* Custom subtle scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

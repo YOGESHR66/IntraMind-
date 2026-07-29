@@ -14,6 +14,7 @@ interface ChatInterfaceProps {
   onSelectCitation: (citation: Citation) => void;
   settings: RAGSettings;
   documents: PDFDocument[];
+  theme?: 'light' | 'dark';
   onOpenLibrary?: () => void;
   onUploadFile?: (file: File) => void;
   onResetChat?: () => void;
@@ -33,6 +34,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onSelectCitation,
   settings,
   documents,
+  theme = 'dark',
   onOpenLibrary,
   onUploadFile,
   onResetChat,
@@ -203,9 +205,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="bg-white/95 backdrop-blur-md border border-indigo-100 rounded-2xl flex flex-col h-full overflow-hidden shadow-xl shadow-indigo-950/5">
+    <div className={`rounded-2xl flex flex-col h-full overflow-hidden shadow-xl border ${
+      theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+    }`}>
       {/* Top Active Documents Bar */}
-      <div className="px-4 py-2.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-900/50 flex items-center justify-between gap-2 shrink-0 text-white">
+      <div className={`px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 border-b ${
+        theme === 'dark'
+          ? 'bg-slate-950 border-slate-800 text-white'
+          : 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-indigo-900/50 text-white'
+      }`}>
         <input
           type="file"
           ref={fileInputRef}
@@ -413,49 +421,104 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <Bot className="w-8 h-8" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 tracking-tight font-general">IntraMind Workspace</h3>
-              <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed font-medium">
+              <h3 className={`text-lg font-bold tracking-tight font-general ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>IntraMind Workspace</h3>
+              <p className={`text-xs max-w-md mt-1 leading-relaxed font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                 Single unified RAG workspace. Ask questions across your PDF, Word, PNG/JPG, JSON, and TXT files with highlighted key insights and verified citations.
               </p>
             </div>
 
             {/* Upload Drag & Drop Area placed BELOW IntraMind Workspace */}
-            <div className="w-full max-w-lg">
+            <div className="w-full max-w-xl sm:max-w-2xl">
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all group shadow-md hover:shadow-indigo-500/10 ${
-                  isUploading
-                    ? 'border-indigo-400 bg-indigo-950 text-white shadow-lg animate-pulse'
-                    : 'border-indigo-200/90 hover:border-indigo-500 bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900 text-white hover:scale-[1.01]'
+                className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all group overflow-hidden shadow-xl hover:scale-[1.01] ${
+                  theme === 'dark'
+                    ? isUploading
+                      ? 'border-indigo-400 bg-slate-900 shadow-indigo-500/30 animate-pulse'
+                      : 'border-indigo-500/40 hover:border-indigo-400 bg-gradient-to-b from-slate-900/90 via-slate-900 to-indigo-950/80 hover:bg-slate-900 text-white shadow-indigo-950/40'
+                    : isUploading
+                      ? 'border-indigo-500 bg-indigo-50 shadow-indigo-500/20 animate-pulse'
+                      : 'border-indigo-300 hover:border-indigo-500 bg-gradient-to-b from-indigo-50/80 via-white to-purple-50/80 hover:bg-indigo-50/90 text-slate-900 shadow-indigo-500/10'
                 }`}
               >
-                <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className="p-2.5 bg-indigo-900/60 group-hover:bg-indigo-600/80 text-sky-300 rounded-xl border border-indigo-500/40 transition-all shadow-sm">
+                {/* Pleasant Ambient SVG Wave Animation Overlay */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl">
+                  <svg
+                    className={`absolute -bottom-2 left-0 w-[150%] h-24 ${theme === 'dark' ? 'opacity-25' : 'opacity-35'} animate-wave-1`}
+                    viewBox="0 0 1440 320"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <linearGradient id="chatWave1" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.8" />
+                        <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.9" />
+                        <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.7" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      fill="url(#chatWave1)"
+                      d="M0,192L48,181.3C96,171,192,149,288,160C384,171,480,213,576,218.7C672,224,768,192,864,181.3C960,171,1056,181,1152,192C1248,203,1344,213,1392,218.7L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
+                    />
+                  </svg>
+                  <svg
+                    className={`absolute -bottom-1 left-0 w-[150%] h-20 ${theme === 'dark' ? 'opacity-20' : 'opacity-25'} animate-wave-2`}
+                    viewBox="0 0 1440 320"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <linearGradient id="chatWave2" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#a855f7" stopOpacity="0.7" />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      fill="url(#chatWave2)"
+                      d="M0,96L60,117.3C120,139,240,181,360,192C480,203,600,181,720,165.3C840,149,960,139,1080,149.3C1200,160,1320,192,1380,208L1440,224L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"
+                    />
+                  </svg>
+                </div>
+
+                <div className="relative z-10 flex flex-col items-center justify-center space-y-2.5">
+                  <div className={`p-3 rounded-2xl border transition-all shadow-md group-hover:scale-105 ${
+                    theme === 'dark'
+                      ? 'bg-indigo-950/70 border-indigo-500/40 text-indigo-300 group-hover:bg-indigo-900/80 group-hover:border-indigo-400'
+                      : 'bg-indigo-100/90 border-indigo-200 text-indigo-600 group-hover:bg-indigo-200/90'
+                  }`}>
                     {isUploading ? (
-                      <Loader2 className="w-5 h-5 text-sky-300 animate-spin" />
+                      <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
                     ) : (
-                      <Upload className="w-5 h-5" />
+                      <Upload className="w-6 h-6" />
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-white tracking-wide">
+                    <p className={`text-sm font-bold tracking-wide ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                       {isUploading
                         ? `Uploading & Indexing ${uploadingFileName || 'file'}...`
                         : 'Upload Files for RAG Search'}
                     </p>
                     {isUploading ? (
-                      <p className="text-[11px] text-indigo-300 font-medium mt-1">
+                      <p className={`text-xs font-medium mt-1 ${theme === 'dark' ? 'text-indigo-200' : 'text-indigo-700'}`}>
                         Parsing document, generating vector embeddings & indexing into RAG store...
                       </p>
                     ) : (
                       <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
-                        <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-400/30 rounded-md text-[10px] font-bold shadow-2xs hover:scale-105 transition-transform">PDF</span>
-                        <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-md text-[10px] font-bold shadow-2xs hover:scale-105 transition-transform">DOCX</span>
-                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-400/30 rounded-md text-[10px] font-bold shadow-2xs hover:scale-105 transition-transform">PNG / JPG</span>
-                        <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-400/30 rounded-md text-[10px] font-bold shadow-2xs hover:scale-105 transition-transform">JSON</span>
-                        <span className="px-2 py-0.5 bg-slate-700/80 text-slate-200 border border-slate-600 rounded-md text-[10px] font-bold shadow-2xs hover:scale-105 transition-transform">TXT / Code</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                          theme === 'dark' ? 'bg-rose-500/20 text-rose-300 border-rose-400/30' : 'bg-rose-100 text-rose-700 border-rose-200'
+                        }`}>PDF</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                          theme === 'dark' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' : 'bg-blue-100 text-blue-700 border-blue-200'
+                        }`}>DOCX</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                          theme === 'dark' ? 'bg-purple-500/20 text-purple-300 border-purple-400/30' : 'bg-purple-100 text-purple-700 border-purple-200'
+                        }`}>PNG / JPG</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                          theme === 'dark' ? 'bg-amber-500/20 text-amber-300 border-amber-400/30' : 'bg-amber-100 text-amber-800 border-amber-200'
+                        }`}>JSON</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border transition-transform hover:scale-105 shadow-2xs ${
+                          theme === 'dark' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        }`}>TXT / Code</span>
                       </div>
                     )}
                   </div>
@@ -553,7 +616,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
           )}
 
-          <div className="relative flex items-center bg-white border-2 border-slate-200 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10 rounded-2xl transition-all shadow-sm">
+          <div className="relative flex items-center bg-white border-2 border-slate-400 hover:border-slate-500 focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-500/15 rounded-2xl transition-all shadow-sm">
             <div className="pl-3.5 pr-2 py-3 flex items-center justify-center shrink-0 text-indigo-600">
               <Sparkles className="w-4 h-4" />
             </div>

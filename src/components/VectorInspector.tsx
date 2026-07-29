@@ -6,9 +6,10 @@ import { fetchApi } from '../lib/api';
 interface VectorInspectorProps {
   chunks: DocumentChunk[];
   settings: RAGSettings;
+  theme?: 'light' | 'dark';
 }
 
-export const VectorInspector: React.FC<VectorInspectorProps> = ({ chunks, settings }) => {
+export const VectorInspector: React.FC<VectorInspectorProps> = ({ chunks, settings, theme = 'dark' }) => {
   const [testQuery, setTestQuery] = useState<string>('');
   const [testResults, setTestResults] = useState<SearchResult[] | null>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -35,52 +36,54 @@ export const VectorInspector: React.FC<VectorInspectorProps> = ({ chunks, settin
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col h-full space-y-4 shadow-xs">
+    <div className={`rounded-xl p-4 flex flex-col h-full space-y-4 shadow-xs border ${
+      theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+    }`}>
       {/* Header */}
-      <div className="pb-3 border-b border-slate-200">
+      <div className={`pb-3 border-b ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
         <div className="flex items-center space-x-2">
-          <Layers className="w-4 h-4 text-slate-700" />
-          <h2 className="text-sm font-bold text-slate-900">Vector Embeddings Inspector</h2>
+          <Layers className="w-4 h-4 text-indigo-400" />
+          <h2 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Vector Embeddings Inspector</h2>
         </div>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
           Real-time inspect vector index, token allocations, and cosine similarity rankings.
         </p>
       </div>
 
       {/* Vector Stats Card */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+        <div className={`border p-2.5 rounded-xl ${theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+          <span className={`text-[10px] font-semibold uppercase tracking-wider block ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             Indexed Chunks
           </span>
-          <span className="text-lg font-bold text-slate-900 font-mono mt-0.5 block">
+          <span className={`text-lg font-bold font-mono mt-0.5 block ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
             {chunks.length}
           </span>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+        <div className={`border p-2.5 rounded-xl ${theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+          <span className={`text-[10px] font-semibold uppercase tracking-wider block ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             Embedding Model
           </span>
-          <span className="text-xs font-semibold text-emerald-700 font-mono mt-1 block">
+          <span className="text-xs font-semibold text-emerald-500 font-mono mt-1 block">
             text-embedding-004
           </span>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+        <div className={`border p-2.5 rounded-xl ${theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+          <span className={`text-[10px] font-semibold uppercase tracking-wider block ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             Vector Dimension
           </span>
-          <span className="text-sm font-bold text-slate-800 font-mono mt-1 block">
+          <span className={`text-sm font-bold font-mono mt-1 block ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>
             768 float32
           </span>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+        <div className={`border p-2.5 rounded-xl ${theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+          <span className={`text-[10px] font-semibold uppercase tracking-wider block ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             Search Metric
           </span>
-          <span className="text-xs font-semibold text-sky-700 font-mono mt-1 block">
+          <span className="text-xs font-semibold text-indigo-400 font-mono mt-1 block">
             Cosine Similarity
           </span>
         </div>

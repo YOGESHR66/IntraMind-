@@ -15,6 +15,9 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  // Theme State ('dark' | 'light')
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
   // RAG State
   const [documents, setDocuments] = useState<PDFDocument[]>([]);
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
@@ -314,16 +317,29 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0a18] selection:bg-indigo-500 selection:text-white font-sans text-slate-100 flex flex-col relative">
+    <div className={`min-h-screen selection:bg-indigo-500 selection:text-white font-sans flex flex-col relative transition-colors duration-200 ${
+      theme === 'dark' ? 'bg-[#0a0d14] text-slate-100' : 'bg-slate-100 text-slate-900'
+    }`}>
       <main className="flex-1 w-full relative overflow-hidden">
-        {/* Subtle Ambient Background Glow for Standard Workspace Mode */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
-        <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
+        {/* Subtle Ambient Background Glow */}
+        {theme === 'dark' ? (
+          <>
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
+            <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
+          </>
+        ) : (
+          <>
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-sky-400/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-indigo-400/10 rounded-full blur-[100px] pointer-events-none" />
+          </>
+        )}
 
-        <div className="pb-8 min-h-screen flex flex-col relative z-10">
+        <div className="h-screen max-h-screen flex flex-col relative z-10 overflow-hidden">
           <Header
             documents={documents}
             totalChunks={totalChunksCount}
+            theme={theme}
+            setTheme={setTheme}
             onOpenUpload={() => setActiveTab('library')}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenVectorInspector={() => fetchChunksForActiveDoc()}
@@ -333,7 +349,7 @@ export default function App() {
             setActiveTab={setActiveTab}
           />
 
-            <div className="flex-1 w-full px-3 sm:px-6 md:px-8 py-3 min-h-[600px] flex flex-col">
+            <div className="flex-1 w-full px-2 sm:px-4 md:px-6 py-2 sm:py-3 flex flex-col min-h-0 overflow-hidden">
               {activeTab === 'chat' && (
                 <ChatInterface
                   messages={messages}
@@ -342,6 +358,7 @@ export default function App() {
                   onSelectCitation={handleSelectCitation}
                   settings={ragSettings}
                   documents={documents}
+                  theme={theme}
                   onOpenLibrary={() => setActiveTab('library')}
                   onUploadFile={handleUploadFile}
                   onResetChat={handleResetChat}
@@ -362,6 +379,7 @@ export default function App() {
                 <DocumentLibrary
                   documents={documents}
                   selectedDocIds={selectedDocIds}
+                  theme={theme}
                   onToggleDocSelection={handleToggleDocSelection}
                   onSelectAllDocs={handleSelectAllDocs}
                   onDeselectAllDocs={handleDeselectAllDocs}
@@ -388,6 +406,7 @@ export default function App() {
                   highlightedCitation={highlightedCitation}
                   chunks={activeDocChunks}
                   isLoadingChunks={isLoadingChunks}
+                  theme={theme}
                 />
               )}
 
@@ -395,6 +414,7 @@ export default function App() {
                 <VectorInspector
                   chunks={allChunks}
                   settings={ragSettings}
+                  theme={theme}
                 />
               )}
             </div>
@@ -407,6 +427,8 @@ export default function App() {
         settings={ragSettings}
         onUpdateSettings={(newS) => setRagSettings(prev => ({ ...prev, ...newS }))}
         documents={documents}
+        theme={theme}
+        setTheme={setTheme}
       />
 
       <LoginModal
