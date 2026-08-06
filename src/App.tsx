@@ -110,7 +110,7 @@ export default function App() {
     setLastFailedFile(null);
 
     let attempts = 0;
-    const maxUploadAttempts = 2;
+    const maxUploadAttempts = 3;
 
     while (attempts < maxUploadAttempts) {
       attempts++;
@@ -129,12 +129,17 @@ export default function App() {
           data = await res.json();
         } else {
           const rawText = await res.text();
-          if (rawText.includes('Cookie check') || rawText.includes('color-scheme') || rawText.includes('<html')) {
+          if (
+            rawText.includes('Cookie check') ||
+            rawText.includes('color-scheme') ||
+            rawText.includes('<html') ||
+            res.status === 404
+          ) {
             if (attempts < maxUploadAttempts) {
-              await new Promise((r) => setTimeout(r, 400 * attempts));
+              await new Promise((r) => setTimeout(r, 500 * attempts));
               continue;
             }
-            throw new Error(`Upload preview session establishing. Please click "Retry Upload" for ${file.name}.`);
+            throw new Error(`Upload server initializing. Please click "Retry Upload" for ${file.name}.`);
           }
           throw new Error(`Server response error (${res.status}). Please click "Retry Upload".`);
         }

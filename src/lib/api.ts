@@ -41,7 +41,7 @@ export async function fetchApi(url: string, options: RequestInit = {}): Promise<
     try {
       const currentOptions = {
         ...baseOptions,
-        body: isFormData ? options.body : cloneBody(options.body),
+        body: cloneBody(options.body),
       };
       const res = await fetch(url, currentOptions);
       const contentType = res.headers.get('content-type') || '';
@@ -76,6 +76,6 @@ export async function fetchApi(url: string, options: RequestInit = {}): Promise<
     }
   }
 
-  return fetch(url, { ...baseOptions, body: options.body });
+  return fetch(url, { ...baseOptions, body: cloneBody(options.body) });
 }
 
