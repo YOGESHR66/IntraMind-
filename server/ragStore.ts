@@ -66,19 +66,27 @@ async function callGeminiWithFallback(
     } catch (err: any) {
       lastError = err;
       const errStr = String(err) + (err?.message ? ` ${err.message}` : '');
+      console.warn(`Gemini model ${model} encounter error: ${errStr.substring(0, 120)}... trying fallback model.`);
+      
       if (
         errStr.includes('429') ||
+        errStr.includes('503') ||
+        errStr.includes('500') ||
         errStr.includes('RESOURCE_EXHAUSTED') ||
+        errStr.includes('UNAVAILABLE') ||
+        errStr.includes('high demand') ||
+        errStr.includes('overloaded') ||
         errStr.includes('quota') ||
         errStr.includes('LIMIT_EXCEEDED') ||
         errStr.includes('404') ||
         errStr.includes('NOT_FOUND') ||
         errStr.includes('no longer available')
       ) {
-        console.warn(`Gemini model ${model} unavailable or rate-limited, trying fallback model...`);
+        // Wait 300ms before attempting next fallback model
+        await new Promise(r => setTimeout(r, 300));
         continue;
       }
-      throw err;
+      continue;
     }
   }
 
@@ -340,7 +348,7 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
       pageCount = data.numpages || 1;
       text = data.text || "";
 
-      if (text && !isRawPdfSyntax(text)) {
+      if (text && !isRawPdfSyntax(text) && text.trim().length > 30) {
         const pageSplitRegex = /\n+(?:Page \d+|Form \d+)\n+/gi;
         const rawPages = text.split(pageSplitRegex);
         if (rawPages.length > 1) {
@@ -363,44 +371,39 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
       console.warn("PDF parsing error:", e);
     }
 
-    let isScannedPdf = false;
-    if (pageTexts.length === 0 || pageTexts.every(p => !p.text.trim() || isRawPdfSyntax(p.text))) {
-      isScannedPdf = true;
-      text = `[PDF Document: ${fileName}] - Document uploaded successfully into workspace.`;
-      pageTexts.length = 0;
-      pageTexts.push({ pageNumber: 1, text });
-    }
-
-    if (isScannedPdf) {
+    // Fallback: If pdf-parse returned empty or raw PDF syntax, extract complete PDF text via Gemini Multimodal Vision API synchronously!
+    if (pageTexts.length === 0 || pageTexts.every(p => !p.text.trim() || p.text.trim().length < 30 || isRawPdfSyntax(p.text))) {
       const ai = getGeminiClient();
       if (ai) {
-        setTimeout(async () => {
-          try {
-            const response = await callGeminiWithFallback(ai, {
-              preferredModel: 'gemini-3.6-flash',
-              contents: [
-                {
-                  inlineData: {
-                    mimeType: 'application/pdf',
-                    data: fileBuffer.toString("base64"),
-                  },
+        try {
+          const response = await callGeminiWithFallback(ai, {
+            preferredModel: 'gemini-3.6-flash',
+            contents: [
+              {
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: fileBuffer.toString("base64"),
                 },
-                `Extract all readable text, questions, answers, definitions, and complete content from this PDF document in structured order. Do not skip any section. Output plain readable text only without any raw PDF source code or binary streams.`,
-              ],
-            });
-            if (response && response.text && response.text.trim()) {
-              const updatedText = response.text.trim();
-              const docChunks = chunksStore.filter(c => c.docId === docId);
-              if (docChunks.length > 0) {
-                docChunks[0].text = updatedText;
-                const emb = await getEmbedding(updatedText);
-                if (emb) docChunks[0].embedding = emb;
+              },
+              `Extract all readable text, key insights, concepts, sections, definitions, questions, answers, and full content from this PDF document in structured order. Do not skip any detail. Output clean readable text only without any raw PDF binary syntax.`,
+            ],
+          });
+          if (response && response.text && response.text.trim()) {
+            const extractedText = response.text.trim();
+            pageTexts.length = 0;
+            const charsPerPage = 1500;
+            const approxPages = Math.max(1, Math.ceil(extractedText.length / charsPerPage));
+            pageCount = approxPages;
+            for (let i = 0; i < approxPages; i++) {
+              const slice = extractedText.slice(i * charsPerPage, (i + 1) * charsPerPage).trim();
+              if (slice) {
+                pageTexts.push({ pageNumber: i + 1, text: slice });
               }
             }
-          } catch (e) {
-            console.error("Background PDF OCR error:", e);
           }
-        }, 10);
+        } catch (e) {
+          console.error("Gemini PDF OCR extraction error:", e);
+        }
       }
     }
   } else if (fileType === 'docx') {
@@ -414,38 +417,33 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
       pageTexts.push({ pageNumber: 1, text });
     }
   } else if (fileType === 'image') {
-    text = `[Image Document: ${fileName}] - Document uploaded and stored in workspace.`;
-    pageTexts.push({ pageNumber: 1, text });
-
-    // Background OCR processing so HTTP upload responds instantly
     const ai = getGeminiClient();
     if (ai) {
       const imageMime = mimeType || (fileName.endsWith('.png') ? 'image/png' : 'image/jpeg');
-      setTimeout(async () => {
-        try {
-          const response = await callGeminiWithFallback(ai, {
-            preferredModel: 'gemini-3.6-flash',
-            contents: [
-              {
-                inlineData: {
-                  mimeType: imageMime,
-                  data: fileBuffer.toString("base64"),
-                },
+      try {
+        const response = await callGeminiWithFallback(ai, {
+          preferredModel: 'gemini-3.6-flash',
+          contents: [
+            {
+              inlineData: {
+                mimeType: imageMime,
+                data: fileBuffer.toString("base64"),
               },
-              `Perform OCR transcription and extract key text from this document image in markdown format.`,
-            ],
-          });
-          if (response && response.text && response.text.trim()) {
-            const updatedText = response.text;
-            const docChunks = chunksStore.filter(c => c.docId === docId);
-            if (docChunks.length > 0) {
-              docChunks[0].text = updatedText;
-            }
-          }
-        } catch (e) {
-          console.error("Background OCR error:", e);
+            },
+            `Perform OCR transcription and extract key text, formulas, diagrams, and information from this document image in markdown format.`,
+          ],
+        });
+        if (response && response.text && response.text.trim()) {
+          text = response.text.trim();
+          pageTexts.push({ pageNumber: 1, text });
         }
-      }, 10);
+      } catch (e) {
+        console.error("Gemini Image OCR error:", e);
+      }
+    }
+    if (pageTexts.length === 0) {
+      text = `[Image Document: ${fileName}]`;
+      pageTexts.push({ pageNumber: 1, text });
     }
   } else if (fileType === 'json') {
     try {

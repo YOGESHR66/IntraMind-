@@ -131,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 font-bold'
                   : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
-              title="Dark Mode (White upload box)"
+              title="Dark Mode"
             >
               <Moon className="w-3.5 h-3.5" />
               <span className="hidden sm:inline text-[11px]">Dark Mode</span>
@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
                     ? 'text-slate-400 hover:text-white hover:bg-white/5'
                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
-              title="Light Mode (Black upload box)"
+              title="Light Mode"
             >
               <Sun className="w-3.5 h-3.5" />
               <span className="hidden sm:inline text-[11px]">Light Mode</span>
@@ -153,36 +153,22 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           <button
-            onClick={onResetChat}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-md shadow-emerald-900/30 active:scale-95 hover:scale-105"
-            title="Start a clean new chat session"
-          >
-            <Plus className="w-3.5 h-3.5 text-white" />
-            <span className="hidden sm:inline">New Chat</span>
-          </button>
-
-          <button
             onClick={onOpenUpload}
-            className="px-3 py-1.5 bg-indigo-600/40 hover:bg-indigo-600/60 border border-indigo-400/30 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer active:scale-95 hover:scale-105"
+            className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-md shadow-indigo-600/25 active:scale-95 hover:scale-[1.02]"
             title="Upload a new document"
           >
-            <Upload className="w-3.5 h-3.5 text-sky-300" />
+            <Upload className="w-3.5 h-3.5 text-white" />
             <span className="hidden sm:inline">Upload</span>
           </button>
 
           <button
-            onClick={onResetChat}
-            title="Clear Chat History"
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold px-2 border border-white/10"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-slate-300" />
-            <span className="hidden md:inline">Reset</span>
-          </button>
-
-          <button
             onClick={onOpenSettings}
-            title="RAG Settings & Theme"
-            className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer border border-white/10"
+            title="RAG Settings & Model Config"
+            className={`p-1.5 rounded-xl transition-colors cursor-pointer border ${
+              theme === 'dark'
+                ? 'text-slate-300 hover:text-white hover:bg-white/10 border-white/10'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200'
+            }`}
           >
             <Settings className="w-4 h-4" />
           </button>

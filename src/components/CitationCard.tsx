@@ -17,10 +17,10 @@ export const CitationCard: React.FC<CitationCardProps> = ({ citation, onSelectCi
         onClick={() => onSelectCitation(citation)}
         onMouseEnter={() => setShowPreview(true)}
         onMouseLeave={() => setShowPreview(false)}
-        className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-800/90 hover:bg-emerald-900 text-white border border-emerald-400/60 transition-all cursor-pointer shadow-2xs hover:scale-105"
+        className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-indigo-500/20 hover:bg-indigo-500/35 text-indigo-300 dark:text-indigo-200 border border-indigo-400/40 transition-all cursor-pointer shadow-2xs hover:scale-105 my-0.5"
       >
         <span>[{citation.sourceId}]</span>
-        <span className="text-[9px] text-emerald-200 font-bold">
+        <span className="text-[9px] text-cyan-300 font-bold bg-indigo-950/60 px-1 rounded">
           {Math.round(citation.similarity * 100)}%
         </span>
       </button>

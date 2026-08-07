@@ -149,7 +149,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               return (
                 <strong
                   key={`b-${bIdx}`}
-                  className="font-extrabold text-white"
+                  className="font-extrabold text-white bg-indigo-500/15 px-1 py-0.5 rounded border border-indigo-400/30 text-indigo-100"
                 >
                   {cleanBold}
                 </strong>
@@ -165,7 +165,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const lines = text.split('\n');
 
     return (
-      <div className="space-y-1.5 text-xs text-white leading-relaxed font-sans">
+      <div className="space-y-2 text-xs sm:text-sm text-slate-100 leading-relaxed font-sans">
         {lines.map((line, lIdx) => {
           const trimmed = line.trim();
           if (!trimmed) return <div key={lIdx} className="h-1" />;
@@ -173,9 +173,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           if (trimmed.startsWith('#')) {
             const headerText = trimmed.replace(/^#+\s*/, '');
             return (
-              <h4 key={lIdx} className="font-bold text-xs text-white uppercase tracking-wider pt-2 pb-1 flex items-center gap-1.5 border-b border-emerald-400/40">
-                <Lightbulb className="w-3.5 h-3.5 text-emerald-200" />
-                {headerText}
+              <h4 key={lIdx} className="font-extrabold text-xs text-indigo-300 uppercase tracking-wider pt-2 pb-1 flex items-center gap-2 border-b border-indigo-500/30">
+                <Lightbulb className="w-4 h-4 text-amber-400" />
+                <span>{headerText}</span>
               </h4>
             );
           }
@@ -186,16 +186,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             return (
               <div
                 key={lIdx}
-                className="flex items-start space-x-2 pl-1 py-0.5 text-white"
+                className="flex items-start space-x-2.5 pl-1 py-0.5"
               >
-                <span className="font-bold text-emerald-200 shrink-0">{bulletPrefix}</span>
-                <span className="flex-1">{highlightKeyMetrics(cleanContent)}</span>
+                <span className="font-bold text-cyan-400 shrink-0 text-sm">{bulletPrefix}</span>
+                <span className="flex-1 text-slate-200">{highlightKeyMetrics(cleanContent)}</span>
               </div>
             );
           }
 
           return (
-            <div key={lIdx} className="py-0.5">
+            <div key={lIdx} className="py-0.5 text-slate-200">
               {highlightKeyMetrics(line)}
             </div>
           );
@@ -772,45 +772,45 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
         </div>
       </div>
 
-      {/* Message Bubble with Highlights */}
-      <div className="p-4 sm:p-5 rounded-2xl max-w-[95%] text-xs shadow-md transition-all bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-900 border border-emerald-500/40 text-white rounded-tl-none w-full leading-relaxed">
+      {/* Modern High-Contrast AI Response Card */}
+      <div className="p-5 sm:p-6 rounded-2xl max-w-[95%] text-xs sm:text-sm shadow-xl transition-all bg-[#141029]/95 border border-indigo-500/30 text-slate-100 rounded-tl-xs w-full leading-relaxed backdrop-blur-md">
         <div>
           {renderHighlightedContent(msg, displayedContent)}
           {!isTypingComplete && (
-            <span className="inline-block w-1.5 h-3.5 bg-white animate-pulse ml-1 align-middle rounded-xs" />
+            <span className="inline-block w-2 h-4 bg-cyan-400 animate-pulse ml-1 align-middle rounded-xs" />
           )}
         </div>
       </div>
 
-      {/* Retrieved Context Accordion for Assistant Messages */}
+      {/* Retrieved Vector Chunks Accordion */}
       {msg.retrievedChunks && msg.retrievedChunks.length > 0 && (
         <div className="w-full max-w-[95%] mt-1">
           <button
             onClick={() => toggleSourceAccordion(msg.id)}
-            className="flex items-center justify-between text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer w-full"
+            className="flex items-center justify-between text-[11px] font-bold text-indigo-300 hover:text-white bg-indigo-950/60 hover:bg-indigo-900/80 px-3.5 py-2 rounded-xl border border-indigo-500/30 transition-all cursor-pointer w-full shadow-2xs"
           >
             <span className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-sky-600" />
-              View {msg.retrievedChunks.length} Vector Context Chunks
+              <Layers className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Verified Sources ({msg.retrievedChunks.length} Context Chunks Analyzed)</span>
             </span>
             {isSourceExpanded ? (
-              <ChevronUp className="w-3.5 h-3.5" />
+              <ChevronUp className="w-3.5 h-3.5 text-indigo-300" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5" />
+              <ChevronDown className="w-3.5 h-3.5 text-indigo-300" />
             )}
           </button>
 
           {isSourceExpanded && (
-            <div className="mt-2 space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 animate-in fade-in">
+            <div className="mt-2 space-y-2 p-3 bg-[#110e23] rounded-xl border border-indigo-500/25 text-xs text-slate-200 animate-in fade-in">
               {msg.retrievedChunks.map((ret, idx) => (
-                <div key={idx} className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
-                  <div className="flex items-center justify-between text-[11px] font-mono text-sky-800 mb-1">
-                    <span className="font-bold">[Source {idx + 1}] {ret.chunk.docName}</span>
-                    <span className="text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                      {ret.scorePercentage}% Match
+                <div key={idx} className="p-3 bg-slate-900/90 rounded-lg border border-slate-800 shadow-2xs">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-indigo-300 mb-1">
+                    <span className="font-bold text-white">[Source {idx + 1}] {ret.chunk.docName} (Page {ret.chunk.pageNumber})</span>
+                    <span className="text-cyan-300 font-bold bg-indigo-950 px-2 py-0.5 rounded border border-indigo-500/40">
+                      {ret.scorePercentage}% Vector Match
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 line-clamp-3 italic">
+                  <p className="text-[11px] text-slate-300 line-clamp-3 italic leading-relaxed">
                     "{ret.chunk.text}"
                   </p>
                 </div>
