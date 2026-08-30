@@ -1,292 +1,247 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, X, Sparkles, Lock, Mail, Shield, Search, Database, FileText, Cpu, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 interface LoginPageProps {
   onEnterApp: () => void;
   onOpenLoginModal?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp }) => {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const CAPABILITIES = [
+  { name: 'Neural Embeddings', badge: 'NE' },
+  { name: 'Hybrid Vector Search', badge: 'VS' },
+  { name: 'Multimodal OCR', badge: 'OCR' },
+  { name: 'Grounded Citations', badge: 'GC' },
+  { name: 'PDF & DOCX Parser', badge: 'DOC' },
+  { name: 'Cosine Re-ranking', badge: 'SIM' },
+  { name: 'Semantic Chunking', badge: 'SC' },
+  { name: 'Multi-Doc Synthesis', badge: 'RAG' },
+];
 
-  // Continuous loop video handling without black fade pauses
+export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginModal }) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Custom JS-controlled video fade loop using requestAnimationFrame:
+  // 0.5s fade-in at start, 0.5s fade-out at end.
+  // On ended, opacity resets to 0, waits 100ms, then replays from 0
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Ensure video is playing continuously
-    const handlePlay = () => {
-      if (video.paused) {
-        video.play().catch(() => {});
+    let animFrameId: number;
+    let timeoutId: NodeJS.Timeout;
+    const fadeDuration = 0.5; // 0.5 seconds
+
+    const updateFade = () => {
+      if (!video) return;
+
+      const currentTime = video.currentTime;
+      const duration = video.duration;
+
+      if (!isNaN(duration) && duration > 0) {
+        // Fade in during first 0.5s
+        if (currentTime < fadeDuration) {
+          const inOpacity = Math.min(1, Math.max(0, currentTime / fadeDuration));
+          video.style.opacity = inOpacity.toFixed(3);
+        }
+        // Fade out during last 0.5s
+        else if (duration - currentTime <= fadeDuration) {
+          const remaining = duration - currentTime;
+          const outOpacity = Math.min(1, Math.max(0, remaining / fadeDuration));
+          video.style.opacity = outOpacity.toFixed(3);
+        }
+        // Fully visible in between
+        else {
+          video.style.opacity = '1';
+        }
       }
+
+      animFrameId = requestAnimationFrame(updateFade);
     };
 
+    const handleEnded = () => {
+      if (!video) return;
+      video.style.opacity = '0';
+      timeoutId = setTimeout(() => {
+        if (!video) return;
+        video.currentTime = 0;
+        video.play().catch(() => {});
+      }, 100);
+    };
+
+    video.addEventListener('ended', handleEnded);
     video.play().catch(() => {});
-    window.addEventListener('focus', handlePlay);
+    animFrameId = requestAnimationFrame(updateFade);
 
     return () => {
-      window.removeEventListener('focus', handlePlay);
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (video) {
+        video.removeEventListener('ended', handleEnded);
+      }
     };
   }, []);
 
-  const ragFeatures = [
-    { name: 'Vector Search Engine', label: 'RAG' },
-    { name: 'Semantic Document Chunking', label: 'AI' },
-    { name: 'Citation Grounding & Verification', label: 'DOC' },
-    { name: 'Multi-PDF Knowledge Intelligence', label: 'CTX' },
-    { name: 'Gemini Embeddings Indexing', label: 'VEC' },
-    { name: 'Hybrid Contextual Retrieval', label: 'RAG' },
-  ];
-
-  // Duplicate list for seamless infinite marquee loop
-  const duplicatedFeatures = [...ragFeatures, ...ragFeatures, ...ragFeatures];
-
-  const handleAuthSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowAuthModal(false);
-    onEnterApp();
+  const handleAction = () => {
+    if (onOpenLoginModal) {
+      onOpenLoginModal();
+    } else {
+      onEnterApp();
+    }
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col bg-[hsl(260_87%_3%)] text-[hsl(40_6%_95%)] overflow-x-hidden font-sans select-none">
-      {/* Background Video Wrapper - Seamless Continuous Loop */}
-      <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
-        <video
-          ref={videoRef}
-          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_065045_c44942da-53c6-4804-b734-f9e07fc22e08.mp4"
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity duration-300"
-        />
-      </div>
+    <div className="relative min-h-screen w-full bg-[hsl(var(--background))] text-[hsl(var(--foreground))] overflow-hidden flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+      {/* Background Video (Index page wrapper) */}
+      <video
+        ref={videoRef}
+        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_065045_c44942da-53c6-4804-b734-f9e07fc22e08.mp4"
+        muted
+        playsInline
+        autoPlay
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-none"
+        style={{ opacity: 0 }}
+      />
 
-      {/* Hero Section Container with overflow-visible so central blur is not clipped */}
+      {/* Main Hero Container sitting in relative z-10 with overflow-visible */}
       <div className="relative z-10 min-h-screen flex flex-col justify-between overflow-visible">
-        
-        {/* Blurred Overlay Shape (Centered behind content) */}
-        <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[984px] max-w-[90vw] h-[527px] opacity-90 bg-gray-950 blur-[82px] pointer-events-none rounded-full" 
-        />
+        {/* Blurred overlay shape centered behind content */}
+        <div className="w-[984px] h-[527px] opacity-90 bg-gray-950 blur-[82px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none -z-10" />
 
-        {/* Navbar */}
-        <header className="w-full relative z-20">
-          <div className="w-full py-5 px-6 sm:px-8 flex flex-row items-center justify-between">
-            {/* Left: Brand Logo & Name */}
-            <div 
+        {/* Top Navbar */}
+        <header className="w-full">
+          <div className="w-full py-5 px-8 flex flex-row items-center justify-between">
+            {/* Left: Brand Logo */}
+            <div
               onClick={onEnterApp}
-              className="flex items-center space-x-3 cursor-pointer group"
+              className="flex items-center space-x-2.5 cursor-pointer select-none group"
             >
-              <div className="w-8 h-8 rounded-lg liquid-glass flex items-center justify-center border border-white/20 group-hover:scale-105 transition-transform">
-                <span className="font-general font-bold text-lg text-white">I</span>
+              <div className="h-8 flex items-center">
+                {/* Clean inline SVG mark fallback and img reference */}
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-400 p-0.5 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                  <div className="w-full h-full bg-[#0d091a] rounded-[10px] flex items-center justify-center">
+                    <span className="font-general font-bold text-sm bg-gradient-to-r from-indigo-300 via-purple-200 to-amber-200 bg-clip-text text-transparent">
+                      IM
+                    </span>
+                  </div>
+                </div>
+                <span className="ml-2.5 font-general font-bold text-lg tracking-tight text-[hsl(var(--foreground))]">
+                  IntraMind
+                </span>
               </div>
-              <span className="font-general font-semibold text-xl tracking-tight text-white">
-                IntraMind
-              </span>
             </div>
 
-            {/* Right: Actions */}
+            {/* Center: Nav Items */}
+            <nav className="hidden md:flex items-center space-x-8">
+              <button
+                type="button"
+                onClick={handleAction}
+                className="flex items-center space-x-1 text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+              >
+                <span>RAG Architecture</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAction}
+                className="text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+              >
+                Vector Search
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAction}
+                className="text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+              >
+                Document OCR
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAction}
+                className="flex items-center space-x-1 text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+              >
+                <span>Documentation</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+              </button>
+            </nav>
+
+            {/* Right: Sign Up Button */}
             <div className="flex items-center space-x-3">
               <button
                 type="button"
-                onClick={onEnterApp}
-                className="hidden sm:inline-block text-xs font-medium text-white/80 hover:text-white px-3 py-2 transition-colors cursor-pointer"
-              >
-                Launch Application
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSignUp(true);
-                  setShowAuthModal(true);
-                }}
-                className="btn-hero-secondary rounded-full px-4 py-2 text-sm font-medium cursor-pointer"
+                onClick={handleAction}
+                className="btn-hero-secondary rounded-full px-4 py-2 text-sm font-medium cursor-pointer active:scale-95"
               >
                 Sign Up
               </button>
             </div>
           </div>
 
-          {/* 1px divider line with gradient */}
-          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[hsl(40_6%_95%)]/20 to-transparent mt-[3px]" />
+          {/* 1px divider line with gradient from-transparent via-foreground/20 to-transparent, offset mt-[3px] */}
+          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[hsl(var(--foreground))]/20 to-transparent mt-[3px]" />
         </header>
 
-        {/* Hero Content (Vertically centered via flex-1) */}
-        <main className="flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 relative z-10 py-6 sm:py-10">
-          <div className="max-w-5xl mx-auto flex flex-col items-center">
-            
-            {/* Headline: "IntraMind AI" optimized to stay on 1 line and unhide CTA button */}
-            <h1 className="font-general font-normal text-[44px] sm:text-[72px] md:text-[96px] lg:text-[120px] xl:text-[136px] leading-none tracking-[-0.03em] text-[hsl(40_6%_95%)] select-none whitespace-nowrap">
-              <span>IntraMind </span>
-              <span 
-                className="bg-clip-text text-transparent inline-block"
-                style={{
-                  backgroundImage: 'linear-gradient(to left, #6366f1, #a855f7, #fcd34d)',
-                }}
-              >
-                AI
-              </span>
-            </h1>
+        {/* Hero Content (vertically centered in remaining space via flex-1) */}
+        <main className="flex-1 flex flex-col items-center justify-center text-center px-4 py-8 relative">
+          {/* Headline: "IntraMind" (replacing "Power AI" per prompt specifications) */}
+          <h1 className="font-general font-normal leading-[1.02] tracking-[-0.024em] text-[clamp(4.2rem,15vw,220px)] select-none">
+            <span className="text-[hsl(var(--foreground))]">Intra</span>
+            <span
+              className="bg-clip-text text-transparent"
+              style={{
+                backgroundImage: 'linear-gradient(to left, #6366f1, #a855f7, #fcd34d)',
+              }}
+            >
+              Mind
+            </span>
+          </h1>
 
-            {/* Subtitle */}
-            <p className="text-[hsl(40_6%_85%)] text-sm sm:text-base md:text-lg leading-relaxed max-w-xl mt-3 opacity-90 font-sans font-normal">
-              The most powerful AI ever deployed in document intelligence & knowledge management
-            </p>
+          {/* Subtitle */}
+          <p className="text-[hsl(var(--hero-sub))] text-base sm:text-lg leading-8 max-w-lg mt-[9px] opacity-90 font-sans">
+            Enterprise Neural RAG & Multi-Format
+            <br className="hidden sm:inline" /> Document Intelligence Engine
+          </p>
 
-            {/* Prominent Unhidden CTA Button */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 mt-6">
-              <button
-                type="button"
-                onClick={onEnterApp}
-                className="btn-hero-secondary px-8 py-4 sm:py-5 rounded-full font-semibold text-base sm:text-lg flex items-center space-x-3 cursor-pointer shadow-2xl hover:scale-105 active:scale-95 transition-all ring-2 ring-purple-500/30"
-              >
-                <Sparkles className="w-5 h-5 text-purple-300 animate-pulse" />
-                <span>Explore RAG Studio & Workspace</span>
-                <ArrowRight className="w-5 h-5 ml-1 text-purple-200" />
-              </button>
-            </div>
-          </div>
+          {/* CTA: "Launch RAG Workspace" button */}
+          <button
+            type="button"
+            onClick={onEnterApp}
+            className="btn-hero-secondary px-[32px] py-[20px] mt-[25px] rounded-full text-base font-medium cursor-pointer shadow-xl hover:shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-2.5"
+          >
+            <span>Launch RAG Workspace</span>
+          </button>
         </main>
 
-        {/* Logo Marquee (Pinned to bottom of hero, pb-10) */}
-        <footer className="w-full relative z-10 pb-10 px-6 sm:px-10">
-          <div className="w-full flex flex-col md:flex-row items-center gap-6 md:gap-12">
-            
-            {/* Left side: Static relevant sentence */}
-            <div className="text-[hsl(40_6%_95%)]/80 text-xs sm:text-sm font-medium text-center md:text-left flex-shrink-0 max-w-xs leading-snug">
-              Real-time knowledge retrieval & vector document intelligence
+        {/* Capabilities marquee pinned to bottom of hero, pb-10 */}
+        <footer className="w-full pb-10 px-6 sm:px-8">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 md:gap-12">
+            {/* Left side: static text */}
+            <div className="text-[hsl(var(--foreground))]/60 text-sm text-center md:text-left leading-snug shrink-0 font-medium">
+              Powered by advanced
+              <br />
+              Neural RAG architecture
             </div>
 
-            {/* Right side: Infinite scrolling RAG feature marquee */}
-            <div className="overflow-hidden w-full relative mask-linear-fade">
+            {/* Right side: infinite scrolling marquee */}
+            <div className="relative flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)] w-full">
               <div className="animate-marquee flex items-center gap-12">
-                {duplicatedFeatures.map((feat, idx) => (
-                  <div 
-                    key={`${feat.name}-${idx}`} 
-                    className="flex items-center space-x-3 flex-shrink-0 cursor-pointer hover:opacity-100 opacity-85 transition-opacity"
-                  >
-                    <div className="liquid-glass px-2 py-0.5 rounded-md flex items-center justify-center font-bold text-[10px] text-purple-300 border border-white/15">
-                      {feat.label}
+                {[...CAPABILITIES, ...CAPABILITIES, ...CAPABILITIES].map((item, idx) => (
+                  <div key={idx} className="flex items-center space-x-2.5 shrink-0 select-none">
+                    <div className="liquid-glass px-2 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold text-[hsl(var(--foreground))] tracking-wider">
+                      {item.badge}
                     </div>
-                    <span className="text-sm font-medium text-[hsl(40_6%_95%)] tracking-tight">
-                      {feat.name}
+                    <span className="text-sm font-semibold text-[hsl(var(--foreground))] whitespace-nowrap">
+                      {item.name}
                     </span>
                   </div>
                 ))}
               </div>
             </div>
-
           </div>
         </footer>
-
       </div>
-
-      {/* Auth Modal */}
-      {showAuthModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-          <div className="relative w-full max-w-md bg-[#0f0b1a] border border-white/15 rounded-3xl p-6 sm:p-8 shadow-2xl text-white overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowAuthModal(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-9 h-9 rounded-xl liquid-glass border border-white/20 flex items-center justify-center font-general font-bold text-xl text-white">
-                I
-              </div>
-              <span className="font-general font-semibold text-2xl tracking-tight text-white">
-                IntraMind AI
-              </span>
-            </div>
-
-            <h2 className="font-general font-semibold text-2xl text-white">
-              {isSignUp ? 'Create your IntraMind account' : 'Sign In to IntraMind AI'}
-            </h2>
-            <p className="text-xs text-white/60 mt-1 mb-6">
-              {isSignUp
-                ? 'Get instant enterprise access to private RAG & vector document search'
-                : 'Enter your credentials or test with 1-click guest access'}
-            </p>
-
-            <form onSubmit={handleAuthSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-white/80 mb-1">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3.5 top-3 w-4 h-4 text-white/40" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="executive@company.com"
-                    required
-                    className="w-full bg-white/5 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-white/80 mb-1">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-3 w-4 h-4 text-white/40" />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="w-full bg-white/5 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 text-white font-medium text-sm py-3 rounded-full transition-all shadow-lg hover:shadow-indigo-500/20 cursor-pointer flex items-center justify-center space-x-2 mt-2"
-              >
-                <span>{isSignUp ? 'Get Started Now' : 'Enter IntraMind RAG Engine'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
-
-            <div className="relative my-6 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
-              </div>
-              <span className="relative bg-[#0f0b1a] px-3 text-[11px] font-mono text-white/40 uppercase">
-                Or Quick Access
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={onEnterApp}
-              className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/15 font-medium text-xs py-2.5 rounded-full transition-all flex items-center justify-center space-x-2 cursor-pointer"
-            >
-              <Shield className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Launch Demo Workspace Instantly</span>
-            </button>
-
-            <div className="mt-6 text-center text-xs text-white/50">
-              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-white font-semibold hover:underline cursor-pointer"
-              >
-                {isSignUp ? 'Sign in' : 'Sign up'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

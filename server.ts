@@ -85,32 +85,130 @@ async function startServer() {
     }
   });
 
-  // Multi-format Document Upload (PDF, DOCX, PNG, JPG, JSON, TXT, etc.)
+  // Multi-format Document Upload (PDF, DOCX, PNG, JPG, JSON, TXT, etc.) with streaming progress support
   app.post("/api/upload", (req, res) => {
     upload.single("file")(req, res, async (err) => {
       if (err) {
         console.error("Multer upload error:", err);
         return res.status(400).json({ error: err.message || "File upload failed" });
       }
+
+      const isStream =
+        req.query.stream === "true" ||
+        req.headers.accept?.includes("text/event-stream") ||
+        req.headers.accept?.includes("application/x-ndjson");
+
+      const abortController = new AbortController();
+      let isClientClosed = false;
+
+      req.on("close", () => {
+        isClientClosed = true;
+        abortController.abort();
+      });
+
       try {
         if (!req.file) {
+          if (isStream) {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.write(`data: ${JSON.stringify({ type: "error", error: "No file provided in upload" })}\n\n`);
+            return res.end();
+          }
           return res.status(400).json({ error: "No file provided in upload" });
         }
 
         const fileName = req.file.originalname || "Uploaded_Document";
         const mimeType = req.file.mimetype;
-        const doc = await processAndIndexFile(req.file.buffer, fileName, mimeType);
 
-        res.json({
-          success: true,
-          document: doc,
-          message: `Successfully processed ${doc.name} into ${doc.chunkCount} vector chunks.`,
-        });
-      } catch (procErr) {
+        if (isStream) {
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("Connection", "keep-alive");
+          res.flushHeaders?.();
+
+          // Initial upload acknowledgement event
+          res.write(
+            `data: ${JSON.stringify({
+              type: "progress",
+              stage: "uploading",
+              percent: 10,
+              detail: `Received ${fileName} (${(req.file.size / 1024).toFixed(1)} KB). Initializing parser...`,
+              fileName,
+              fileSize: req.file.size,
+            })}\n\n`
+          );
+
+          const doc = await processAndIndexFile(
+            req.file.buffer,
+            fileName,
+            mimeType,
+            (progress) => {
+              if (!isClientClosed && !res.writableEnded) {
+                res.write(
+                  `data: ${JSON.stringify({
+                    type: "progress",
+                    fileName,
+                    fileSize: req.file?.size,
+                    ...progress,
+                  })}\n\n`
+                );
+              }
+            },
+            abortController.signal
+          );
+
+          if (!res.writableEnded) {
+            res.write(
+              `data: ${JSON.stringify({
+                type: "complete",
+                success: true,
+                document: doc,
+                percent: 100,
+                message: `Successfully processed ${doc.name} into ${doc.chunkCount} vector chunks.`,
+              })}\n\n`
+            );
+            res.end();
+          }
+        } else {
+          const doc = await processAndIndexFile(
+            req.file.buffer,
+            fileName,
+            mimeType,
+            undefined,
+            abortController.signal
+          );
+
+          res.json({
+            success: true,
+            document: doc,
+            message: `Successfully processed ${doc.name} into ${doc.chunkCount} vector chunks.`,
+          });
+        }
+      } catch (procErr: any) {
         console.error("Document upload processing error:", procErr);
-        res.status(500).json({
-          error: "Failed to process document: " + (procErr instanceof Error ? procErr.message : String(procErr)),
-        });
+        const isAborted =
+          abortController.signal.aborted ||
+          String(procErr).includes("aborted") ||
+          isClientClosed;
+
+        if (isStream) {
+          if (!res.writableEnded) {
+            res.write(
+              `data: ${JSON.stringify({
+                type: isAborted ? "aborted" : "error",
+                error: isAborted
+                  ? "Upload aborted by user."
+                  : "Failed to process document: " + (procErr instanceof Error ? procErr.message : String(procErr)),
+              })}\n\n`
+            );
+            res.end();
+          }
+        } else {
+          res.status(isAborted ? 499 : 500).json({
+            error: isAborted
+              ? "Upload aborted by user."
+              : "Failed to process document: " + (procErr instanceof Error ? procErr.message : String(procErr)),
+          });
+        }
       }
     });
   });

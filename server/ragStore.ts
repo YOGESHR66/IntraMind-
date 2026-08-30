@@ -334,8 +334,32 @@ export function chunkDocumentText(docId: string, docName: string, pageNumber: nu
   return chunks;
 }
 
+export type ProgressCallback = (progress: {
+  stage: 'uploading' | 'parsing' | 'ocr' | 'chunking' | 'embedding' | 'finalizing' | 'complete';
+  percent: number;
+  currentChunk?: number;
+  totalChunks?: number;
+  detail: string;
+}) => void;
+
 // Process and Index multi-format files (PDF, DOCX, PNG/JPG/WebP, JSON, TXT, Code, etc.)
-export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, mimeType?: string): Promise<PDFDocument> {
+export async function processAndIndexFile(
+  fileBuffer: Buffer,
+  fileName: string,
+  mimeType?: string,
+  onProgress?: ProgressCallback,
+  abortSignal?: AbortSignal
+): Promise<PDFDocument> {
+  if (abortSignal?.aborted) {
+    throw new Error("Upload aborted by user");
+  }
+
+  onProgress?.({
+    stage: 'parsing',
+    percent: 20,
+    detail: `Parsing document structure for ${fileName}...`,
+  });
+
   const docId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const fileType = detectFileType(fileName);
   let text = "";
@@ -373,6 +397,14 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
 
     // Fallback: If pdf-parse returned empty or raw PDF syntax, extract complete PDF text via Gemini Multimodal Vision API synchronously!
     if (pageTexts.length === 0 || pageTexts.every(p => !p.text.trim() || p.text.trim().length < 30 || isRawPdfSyntax(p.text))) {
+      if (abortSignal?.aborted) throw new Error("Upload aborted by user");
+
+      onProgress?.({
+        stage: 'ocr',
+        percent: 35,
+        detail: `Running multimodal OCR on ${fileName}...`,
+      });
+
       const ai = getGeminiClient();
       if (ai) {
         try {
@@ -417,6 +449,14 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
       pageTexts.push({ pageNumber: 1, text });
     }
   } else if (fileType === 'image') {
+    if (abortSignal?.aborted) throw new Error("Upload aborted by user");
+
+    onProgress?.({
+      stage: 'ocr',
+      percent: 35,
+      detail: `Performing AI OCR visual text recognition on ${fileName}...`,
+    });
+
     const ai = getGeminiClient();
     if (ai) {
       const imageMime = mimeType || (fileName.endsWith('.png') ? 'image/png' : 'image/jpeg');
@@ -459,10 +499,18 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
     pageTexts.push({ pageNumber: 1, text });
   }
 
+  if (abortSignal?.aborted) throw new Error("Upload aborted by user");
+
   if (pageTexts.length === 0 || pageTexts.every(p => !p.text.trim())) {
     pageTexts.length = 0;
     pageTexts.push({ pageNumber: 1, text: `[Document ${fileName} uploaded successfully]` });
   }
+
+  onProgress?.({
+    stage: 'chunking',
+    percent: 50,
+    detail: `Splitting ${fileName} into semantic vector chunks...`,
+  });
 
   const createdChunks: DocumentChunk[] = [];
 
@@ -470,6 +518,55 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
     const pChunks = chunkDocumentText(docId, fileName, p.pageNumber, p.text);
     createdChunks.push(...pChunks);
   }
+
+  onProgress?.({
+    stage: 'chunking',
+    percent: 60,
+    totalChunks: createdChunks.length,
+    detail: `Generated ${createdChunks.length} semantic chunks. Preparing vector indexing...`,
+  });
+
+  // Vector embeddings generation with real-time streaming progress
+  const BATCH_SIZE = 3;
+  for (let i = 0; i < createdChunks.length; i += BATCH_SIZE) {
+    if (abortSignal?.aborted) {
+      throw new Error("Upload aborted by user");
+    }
+
+    const batch = createdChunks.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (chunk) => {
+        try {
+          const emb = await getEmbedding(chunk.text);
+          if (emb) chunk.embedding = emb;
+        } catch {
+          // Fallback to keyword search
+        }
+      })
+    );
+
+    const processedCount = Math.min(createdChunks.length, i + batch.length);
+    const embedPercent = Math.min(95, Math.round(60 + (processedCount / Math.max(1, createdChunks.length)) * 35));
+
+    onProgress?.({
+      stage: 'embedding',
+      percent: embedPercent,
+      currentChunk: processedCount,
+      totalChunks: createdChunks.length,
+      detail: `Indexing vector embeddings (${processedCount} / ${createdChunks.length} chunks)...`,
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+  }
+
+  if (abortSignal?.aborted) throw new Error("Upload aborted by user");
+
+  onProgress?.({
+    stage: 'finalizing',
+    percent: 98,
+    totalChunks: createdChunks.length,
+    detail: `Finalizing vector indices for ${fileName}...`,
+  });
 
   const docMeta: PDFDocument = {
     id: docId,
@@ -483,30 +580,17 @@ export async function processAndIndexFile(fileBuffer: Buffer, fileName: string, 
     isSample: false,
   };
 
-  // Immediately store document metadata and text chunks
+  // Commit document metadata and text chunks to store
   documentsStore.push(docMeta);
   chunksStore.push(...createdChunks);
 
-  // Background async generation of vector embeddings (completely non-blocking)
-  setTimeout(() => {
-    (async () => {
-      const BATCH_SIZE = 3;
-      for (let i = 0; i < createdChunks.length; i += BATCH_SIZE) {
-        const batch = createdChunks.slice(i, i + BATCH_SIZE);
-        await Promise.all(
-          batch.map(async (chunk) => {
-            try {
-              const emb = await getEmbedding(chunk.text);
-              if (emb) chunk.embedding = emb;
-            } catch {
-              // Fallback to keyword search
-            }
-          })
-        );
-        await new Promise((r) => setTimeout(r, 40));
-      }
-    })().catch(err => console.error("Background embedding processing error:", err));
-  }, 10);
+  onProgress?.({
+    stage: 'complete',
+    percent: 100,
+    currentChunk: createdChunks.length,
+    totalChunks: createdChunks.length,
+    detail: `Successfully indexed ${fileName} (${createdChunks.length} chunks ready for RAG query)`,
+  });
 
   return docMeta;
 }

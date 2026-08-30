@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { LoginModal } from './components/LoginModal';
 import { Header } from './components/Header';
@@ -7,8 +7,8 @@ import { DocumentViewer } from './components/DocumentViewer';
 import { VectorInspector } from './components/VectorInspector';
 import { ChatInterface } from './components/ChatInterface';
 import { SettingsModal } from './components/SettingsModal';
-import { PDFDocument, DocumentChunk, ChatMessage, Citation, RAGSettings } from './types';
-import { fetchApi } from './lib/api';
+import { PDFDocument, DocumentChunk, ChatMessage, Citation, RAGSettings, UploadProgressState } from './types';
+import { fetchApi, uploadDocumentWithStreamingProgress } from './lib/api';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<'login' | 'app'>('login');
@@ -34,6 +34,8 @@ export default function App() {
 
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
+  const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccessNotice, setUploadSuccessNotice] = useState<{ docName: string; chunkCount: number; fileSize: number; fileType: string } | null>(null);
   const [lastUploadedDocId, setLastUploadedDocId] = useState<string | null>(null);
@@ -102,89 +104,130 @@ export default function App() {
     }
   }, [activeDoc?.id]);
 
+  const handleAbortUpload = () => {
+    if (uploadAbortControllerRef.current) {
+      uploadAbortControllerRef.current.abort();
+      uploadAbortControllerRef.current = null;
+    }
+    setIsUploading(false);
+    setUploadProgress((prev) =>
+      prev
+        ? {
+            ...prev,
+            stage: 'aborted',
+            message: 'Upload and indexing was cancelled by user.',
+          }
+        : null
+    );
+    setTimeout(() => {
+      setUploadProgress(null);
+      setUploadingFileName(null);
+    }, 2500);
+  };
+
   const handleUploadFile = async (file: File) => {
+    // If an upload is already underway, cancel it first
+    if (uploadAbortControllerRef.current) {
+      uploadAbortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    uploadAbortControllerRef.current = controller;
+
     setIsUploading(true);
     setUploadingFileName(file.name);
     setUploadError(null);
     setUploadSuccessNotice(null);
     setLastFailedFile(null);
 
-    let attempts = 0;
-    const maxUploadAttempts = 3;
+    setUploadProgress({
+      stage: 'uploading',
+      progress: 5,
+      fileName: file.name,
+      fileSize: file.size,
+      message: 'Connecting and sending document...',
+    });
 
-    while (attempts < maxUploadAttempts) {
-      attempts++;
-      try {
-        const formData = new FormData();
-        formData.append('file', file, file.name);
+    try {
+      const result = await uploadDocumentWithStreamingProgress(
+        file,
+        (progressState) => {
+          setUploadProgress(progressState);
+        },
+        controller.signal
+      );
 
-        const res = await fetchApi('/api/upload', {
-          method: 'POST',
-          body: formData,
+      await fetchDocuments();
+
+      if (result.document) {
+        const doc: PDFDocument = result.document;
+        setActiveDoc(doc);
+        setLastUploadedDocId(doc.id);
+        setUploadSuccessNotice({
+          docName: doc.name,
+          chunkCount: doc.chunkCount,
+          fileSize: doc.fileSize,
+          fileType: doc.fileType || 'file',
         });
+        setActiveTab('chat');
+      }
 
-        const contentType = res.headers.get('content-type') || '';
-        let data: any = {};
-        if (contentType.includes('application/json')) {
-          data = await res.json();
-        } else {
-          const rawText = await res.text();
-          if (
-            rawText.includes('Cookie check') ||
-            rawText.includes('color-scheme') ||
-            rawText.includes('<html') ||
-            res.status === 404
-          ) {
-            if (attempts < maxUploadAttempts) {
-              await new Promise((r) => setTimeout(r, 500 * attempts));
-              continue;
-            }
-            throw new Error(`Upload server initializing. Please click "Retry Upload" for ${file.name}.`);
-          }
-          throw new Error(`Server response error (${res.status}). Please click "Retry Upload".`);
-        }
+      setIsUploading(false);
+      setUploadingFileName(null);
+      uploadAbortControllerRef.current = null;
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to process document');
-        }
+      // Keep success state visible briefly for clear feedback
+      setTimeout(() => {
+        setUploadProgress(null);
+      }, 1200);
+    } catch (err: any) {
+      const isAborted =
+        controller.signal.aborted ||
+        err?.name === 'AbortError' ||
+        err?.message?.toLowerCase().includes('abort');
 
-        await fetchDocuments();
-        if (data.document) {
-          const doc: PDFDocument = data.document;
-          setActiveDoc(doc);
-          setLastUploadedDocId(doc.id);
-          setUploadSuccessNotice({
-            docName: doc.name,
-            chunkCount: doc.chunkCount,
-            fileSize: doc.fileSize,
-            fileType: doc.fileType || 'file',
-          });
-          setActiveTab('chat');
-        }
+      if (isAborted) {
+        setUploadProgress({
+          stage: 'aborted',
+          progress: 0,
+          fileName: file.name,
+          fileSize: file.size,
+          message: 'Upload aborted by user.',
+        });
         setIsUploading(false);
         setUploadingFileName(null);
-        break;
-      } catch (err: any) {
-        if (attempts >= maxUploadAttempts) {
-          setLastFailedFile(file);
-          const errMsg = err instanceof Error ? err.message : String(err);
-          let cleanErr = errMsg
-            .replace(/<[^>]*>?/gm, '')
-            .replace(/:\s*root\s*\{[^}]*\}/gi, '')
-            .replace(/body\s*\{[^}]*\}/gi, '')
-            .trim();
-
-          if (cleanErr.includes('Failed to fetch') || cleanErr.includes('fetch')) {
-            cleanErr = `Connection interrupted. Click "Retry Upload" to index ${file.name}.`;
-          }
-
-          setUploadError(cleanErr || `Failed to index ${file.name}. Please click "Retry Upload".`);
-          setIsUploading(false);
-          setUploadingFileName(null);
-        } else {
-          await new Promise((r) => setTimeout(r, 400 * attempts));
-        }
+        uploadAbortControllerRef.current = null;
+        setTimeout(() => {
+          setUploadProgress(null);
+        }, 2500);
+        return;
       }
+
+      setLastFailedFile(file);
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      let cleanErr = rawMsg
+        .replace(/<[^>]*>?/gm, '')
+        .replace(/:\s*root\s*\{[^}]*\}/gi, '')
+        .replace(/body\s*\{[^}]*\}/gi, '')
+        .trim();
+
+      if (cleanErr.includes('Failed to fetch') || cleanErr.includes('fetch')) {
+        cleanErr = `Connection interrupted. Click "Retry Upload" to index ${file.name}.`;
+      }
+
+      setUploadError(cleanErr || `Failed to index ${file.name}. Please click "Retry Upload".`);
+      setUploadProgress({
+        stage: 'error',
+        progress: 0,
+        fileName: file.name,
+        fileSize: file.size,
+        message: cleanErr || 'Document processing error',
+        error: cleanErr,
+      });
+
+      setIsUploading(false);
+      setUploadingFileName(null);
+      uploadAbortControllerRef.current = null;
     }
   };
 
@@ -314,10 +357,21 @@ export default function App() {
   // If in Dark Hero Login mode
   if (viewMode === 'login') {
     return (
-      <LoginPage
-        onEnterApp={() => setViewMode('app')}
-        onOpenLoginModal={() => setIsLoginOpen(true)}
-      />
+      <>
+        <LoginPage
+          onEnterApp={() => setViewMode('app')}
+          onOpenLoginModal={() => setIsLoginOpen(true)}
+        />
+        <LoginModal
+          isOpen={isLoginOpen}
+          onClose={() => setIsLoginOpen(false)}
+          onLoginSuccess={(email) => {
+            setIsLoginOpen(false);
+            setUserEmail(email);
+            setViewMode('app');
+          }}
+        />
+      </>
     );
   }
 
@@ -377,6 +431,8 @@ export default function App() {
                     setUploadError(null);
                   }}
                   lastUploadedDocId={lastUploadedDocId}
+                  uploadProgress={uploadProgress}
+                  onAbortUpload={handleAbortUpload}
                 />
               )}
 
@@ -400,6 +456,8 @@ export default function App() {
                   uploadError={uploadError}
                   onDismissUploadNotice={() => setUploadSuccessNotice(null)}
                   lastUploadedDocId={lastUploadedDocId}
+                  uploadProgress={uploadProgress}
+                  onAbortUpload={handleAbortUpload}
                 />
               )}
 

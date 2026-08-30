@@ -1,3 +1,5 @@
+import { UploadProgressState, PDFDocument } from '../types';
+
 function cloneBody(body: any): any {
   if (body instanceof FormData) {
     const clone = new FormData();
@@ -78,4 +80,128 @@ export async function fetchApi(url: string, options: RequestInit = {}): Promise<
 
   return fetch(url, { ...baseOptions, body: cloneBody(options.body) });
 }
+
+export interface UploadResult {
+  success: boolean;
+  document?: PDFDocument;
+  aborted?: boolean;
+  error?: string;
+  message?: string;
+}
+
+export async function uploadDocumentWithStreamingProgress(
+  file: File,
+  onProgress?: (progress: UploadProgressState) => void,
+  signal?: AbortSignal
+): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+
+  // Initial stage
+  onProgress?.({
+    stage: 'uploading',
+    percent: 8,
+    fileName: file.name,
+    fileSize: file.size,
+    detail: `Transmitting ${file.name} to IntraMind RAG Engine...`,
+  });
+
+  const res = await fetch('/api/upload?stream=true', {
+    method: 'POST',
+    body: formData,
+    signal,
+    headers: {
+      'Accept': 'text/event-stream, application/x-ndjson',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+  });
+
+  if (!res.ok && res.status !== 499) {
+    let errText = `Upload error (${res.status})`;
+    try {
+      const errJson = await res.json();
+      if (errJson.error) errText = errJson.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(errText);
+  }
+
+  if (!res.body) {
+    throw new Error('Response stream not supported by browser');
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let finalDoc: PDFDocument | undefined;
+  let finalMsg = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop() || '';
+
+    for (const chunk of lines) {
+      const trimmed = chunk.trim();
+      if (!trimmed) continue;
+
+      const dataPrefix = 'data: ';
+      const jsonStr = trimmed.startsWith(dataPrefix) ? trimmed.slice(dataPrefix.length) : trimmed;
+
+      try {
+        const payload = JSON.parse(jsonStr);
+
+        if (payload.type === 'progress') {
+          onProgress?.({
+            stage: payload.stage || 'parsing',
+            percent: payload.percent ?? 50,
+            fileName: payload.fileName || file.name,
+            fileSize: payload.fileSize || file.size,
+            currentChunk: payload.currentChunk,
+            totalChunks: payload.totalChunks,
+            detail: payload.detail || 'Processing document in vector store...',
+          });
+        } else if (payload.type === 'complete') {
+          finalDoc = payload.document;
+          finalMsg = payload.message || 'Indexing complete';
+          onProgress?.({
+            stage: 'complete',
+            percent: 100,
+            fileName: file.name,
+            fileSize: file.size,
+            currentChunk: payload.document?.chunkCount,
+            totalChunks: payload.document?.chunkCount,
+            detail: finalMsg,
+          });
+        } else if (payload.type === 'aborted') {
+          onProgress?.({
+            stage: 'aborted',
+            percent: 0,
+            fileName: file.name,
+            detail: 'Upload aborted by user.',
+            isAborting: false,
+          });
+          return { success: false, aborted: true, error: 'Upload aborted by user.' };
+        } else if (payload.type === 'error') {
+          throw new Error(payload.error || 'Server processing error');
+        }
+      } catch (e: any) {
+        if (e.message && !e.message.includes('JSON')) {
+          throw e;
+        }
+      }
+    }
+  }
+
+  if (finalDoc) {
+    return { success: true, document: finalDoc, message: finalMsg };
+  }
+
+  throw new Error('Indexing completed without document payload.');
+}
+
 

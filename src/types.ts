@@ -55,3 +55,27 @@ export interface RAGSettings {
   temperature: number;
   selectedDocIds: string[]; // empty array = search all docs
 }
+
+export type UploadStage =
+  | 'idle'
+  | 'uploading'
+  | 'parsing'
+  | 'ocr'
+  | 'chunking'
+  | 'embedding'
+  | 'finalizing'
+  | 'complete'
+  | 'aborted'
+  | 'error';
+
+export interface UploadProgressState {
+  stage: UploadStage;
+  percent: number; // 0 to 100
+  fileName: string;
+  fileSize?: number;
+  currentChunk?: number;
+  totalChunks?: number;
+  detail: string;
+  isAborting?: boolean;
+}
+
