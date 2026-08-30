@@ -120,11 +120,33 @@ export async function uploadDocumentWithStreamingProgress(
     let errText = `Upload error (${res.status})`;
     try {
       const errJson = await res.json();
-      if (errJson.error) errText = errJson.error;
+      if (errJson.error) {
+        errText = typeof errJson.error === 'object' ? JSON.stringify(errJson.error) : String(errJson.error);
+      }
     } catch {
       // ignore
     }
     throw new Error(errText);
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const json = await res.json();
+    if (json.document) {
+      onProgress?.({
+        stage: 'complete',
+        percent: 100,
+        fileName: file.name,
+        fileSize: file.size,
+        currentChunk: json.document.chunkCount,
+        totalChunks: json.document.chunkCount,
+        detail: json.message || 'Document indexed successfully',
+      });
+      return { success: true, document: json.document, message: json.message };
+    }
+    if (json.error) {
+      throw new Error(typeof json.error === 'object' ? JSON.stringify(json.error) : String(json.error));
+    }
   }
 
   if (!res.body) {
@@ -156,9 +178,10 @@ export async function uploadDocumentWithStreamingProgress(
         const payload = JSON.parse(jsonStr);
 
         if (payload.type === 'progress') {
+          const pVal = typeof payload.percent === 'number' ? payload.percent : typeof payload.progress === 'number' ? payload.progress : 50;
           onProgress?.({
             stage: payload.stage || 'parsing',
-            percent: payload.percent ?? 50,
+            percent: pVal,
             fileName: payload.fileName || file.name,
             fileSize: payload.fileSize || file.size,
             currentChunk: payload.currentChunk,
@@ -187,7 +210,8 @@ export async function uploadDocumentWithStreamingProgress(
           });
           return { success: false, aborted: true, error: 'Upload aborted by user.' };
         } else if (payload.type === 'error') {
-          throw new Error(payload.error || 'Server processing error');
+          const errStr = typeof payload.error === 'object' ? JSON.stringify(payload.error) : String(payload.error || 'Server processing error');
+          throw new Error(errStr);
         }
       } catch (e: any) {
         if (e.message && !e.message.includes('JSON')) {

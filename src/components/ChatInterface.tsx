@@ -349,9 +349,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       {uploadError && (
         <div className="mx-4 mt-3 bg-rose-50 border border-rose-200 text-rose-900 p-3 rounded-xl flex items-center justify-between text-xs font-medium shadow-2xs animate-in fade-in">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 min-w-0 flex-1 pr-2">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span className="font-bold text-rose-950">Upload Notice: {uploadError}</span>
+            <span className="font-bold text-rose-950 truncate">
+              Upload Notice:{' '}
+              {typeof uploadError === 'string' && !uploadError.includes('[object Object]')
+                ? uploadError
+                : typeof uploadError === 'object' && uploadError !== null
+                  ? (uploadError as any).message || (uploadError as any).error || JSON.stringify(uploadError)
+                  : 'Document upload encountered an issue. Please retry.'}
+            </span>
           </div>
           <div className="flex items-center space-x-2 shrink-0">
             {onRetryUpload && (

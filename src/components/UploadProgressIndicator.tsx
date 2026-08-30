@@ -31,6 +31,42 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
 
   const { stage, percent, fileName, currentChunk, totalChunks, detail, isAborting } = progress;
 
+  // Safe percentage parsing
+  const rawPercent = typeof percent === 'number' && !isNaN(percent)
+    ? percent
+    : typeof (progress as any).progress === 'number' && !isNaN((progress as any).progress)
+      ? (progress as any).progress
+      : 10;
+  const safePercent = Math.max(0, Math.min(100, Math.round(rawPercent)));
+
+  const defaultDetailForStage = (st: string) => {
+    switch (st) {
+      case 'uploading':
+        return `Transmitting ${fileName || 'document'} to RAG Engine...`;
+      case 'parsing':
+      case 'ocr':
+        return `Parsing layout structure & running text extraction...`;
+      case 'chunking':
+        return `Creating semantic vector chunks with token overlap...`;
+      case 'embedding':
+        return `Generating neural vector embeddings...`;
+      case 'finalizing':
+        return `Storing in vector database and creating search indices...`;
+      case 'complete':
+        return `Document successfully indexed and ready for semantic search!`;
+      case 'aborted':
+        return `Operation was aborted.`;
+      case 'error':
+        return (progress as any).error || 'An error occurred during indexing.';
+      default:
+        return 'Processing document in vector store...';
+    }
+  };
+
+  const displayDetail = isAborting
+    ? 'Cancelling indexing and releasing worker thread...'
+    : detail || defaultDetailForStage(stage);
+
   const stagesList = [
     { key: 'uploading', label: 'Upload', icon: FileText },
     { key: 'parsing', label: 'Parse & OCR', icon: Cpu },
@@ -81,10 +117,10 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between text-[11px] font-semibold mb-1">
               <span className="truncate max-w-[140px] sm:max-w-[220px]">
-                {isAborting ? 'Aborting upload...' : fileName}
+                {isAborting ? 'Aborting upload...' : fileName || 'Document'}
               </span>
               <span className="font-mono text-indigo-400 shrink-0 ml-2 font-bold">
-                {percent}%
+                {safePercent}%
               </span>
             </div>
 
@@ -96,7 +132,7 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
                     ? 'bg-rose-500'
                     : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-sky-400'
                 }`}
-                style={{ width: `${Math.max(4, Math.min(100, percent))}%` }}
+                style={{ width: `${Math.max(4, safePercent)}%` }}
               />
             </div>
           </div>
@@ -152,8 +188,8 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
           </div>
           <div className="min-w-0">
             <h4 className="font-bold text-sm truncate flex items-center gap-2">
-              <span>{isAborting ? 'Aborting Upload...' : fileName}</span>
-              {totalChunks && totalChunks > 0 && (
+              <span>{isAborting ? 'Aborting Upload...' : fileName || 'Document'}</span>
+              {totalChunks !== undefined && totalChunks > 0 && (
                 <span className="text-[11px] px-2 py-0.5 rounded-full font-mono bg-indigo-500/15 text-indigo-300 border border-indigo-400/30">
                   {currentChunk !== undefined ? `${currentChunk}/${totalChunks} chunks` : `${totalChunks} chunks`}
                 </span>
@@ -164,7 +200,7 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
                 theme === 'dark' ? 'text-indigo-200/80' : 'text-slate-500'
               }`}
             >
-              {isAborting ? 'Cancelling indexing and releasing worker thread...' : detail}
+              {displayDetail}
             </p>
           </div>
         </div>
@@ -201,7 +237,7 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
               isAborting ? 'text-rose-400' : 'text-indigo-400'
             }`}
           >
-            {percent}%
+            {safePercent}%
           </span>
         </div>
 
@@ -212,7 +248,7 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
                 ? 'bg-rose-500'
                 : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-sky-400 shadow-sm shadow-indigo-500/50'
             }`}
-            style={{ width: `${Math.max(4, Math.min(100, percent))}%` }}
+            style={{ width: `${Math.max(4, safePercent)}%` }}
           >
             {/* Animated Shimmer Highlight */}
             {!isAborting && stage !== 'complete' && (

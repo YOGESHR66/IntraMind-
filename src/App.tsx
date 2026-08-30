@@ -104,6 +104,32 @@ export default function App() {
     }
   }, [activeDoc?.id]);
 
+  function formatErrorMessage(err: any): string {
+    if (!err) return 'An unexpected error occurred';
+    if (typeof err === 'string') {
+      let str = err.trim();
+      if (str.startsWith('[object') || str === 'Error') {
+        return 'Connection or document processing error. Please retry.';
+      }
+      return str;
+    }
+    if (err instanceof Error) {
+      return err.message || 'Processing error';
+    }
+    if (typeof err === 'object') {
+      if (err.message && typeof err.message === 'string') return err.message;
+      if (err.error && typeof err.error === 'string') return err.error;
+      if (err.details && typeof err.details === 'string') return err.details;
+      try {
+        const json = JSON.stringify(err);
+        if (json && json !== '{}') return json;
+      } catch {
+        // ignore
+      }
+    }
+    return String(err);
+  }
+
   const handleAbortUpload = () => {
     if (uploadAbortControllerRef.current) {
       uploadAbortControllerRef.current.abort();
@@ -115,7 +141,9 @@ export default function App() {
         ? {
             ...prev,
             stage: 'aborted',
-            message: 'Upload and indexing was cancelled by user.',
+            percent: 0,
+            detail: 'Upload and indexing was cancelled by user.',
+            isAborting: false,
           }
         : null
     );
@@ -142,10 +170,10 @@ export default function App() {
 
     setUploadProgress({
       stage: 'uploading',
-      progress: 5,
+      percent: 8,
       fileName: file.name,
       fileSize: file.size,
-      message: 'Connecting and sending document...',
+      detail: 'Connecting and sending document...',
     });
 
     try {
@@ -184,15 +212,15 @@ export default function App() {
       const isAborted =
         controller.signal.aborted ||
         err?.name === 'AbortError' ||
-        err?.message?.toLowerCase().includes('abort');
+        String(err?.message || '').toLowerCase().includes('abort');
 
       if (isAborted) {
         setUploadProgress({
           stage: 'aborted',
-          progress: 0,
+          percent: 0,
           fileName: file.name,
           fileSize: file.size,
-          message: 'Upload aborted by user.',
+          detail: 'Upload aborted by user.',
         });
         setIsUploading(false);
         setUploadingFileName(null);
@@ -204,7 +232,7 @@ export default function App() {
       }
 
       setLastFailedFile(file);
-      const rawMsg = err instanceof Error ? err.message : String(err);
+      const rawMsg = formatErrorMessage(err);
       let cleanErr = rawMsg
         .replace(/<[^>]*>?/gm, '')
         .replace(/:\s*root\s*\{[^}]*\}/gi, '')
@@ -218,11 +246,10 @@ export default function App() {
       setUploadError(cleanErr || `Failed to index ${file.name}. Please click "Retry Upload".`);
       setUploadProgress({
         stage: 'error',
-        progress: 0,
+        percent: 0,
         fileName: file.name,
         fileSize: file.size,
-        message: cleanErr || 'Document processing error',
-        error: cleanErr,
+        detail: cleanErr || 'Document processing error',
       });
 
       setIsUploading(false);

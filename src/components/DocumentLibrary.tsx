@@ -204,7 +204,13 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
       {uploadError && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs flex items-center space-x-2 shrink-0">
           <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-          <span>{uploadError}</span>
+          <span className="truncate">
+            {typeof uploadError === 'string' && !uploadError.includes('[object Object]')
+              ? uploadError
+              : typeof uploadError === 'object' && uploadError !== null
+                ? (uploadError as any).message || (uploadError as any).error || JSON.stringify(uploadError)
+                : 'Document upload encountered an issue. Please retry.'}
+          </span>
         </div>
       )}
 
