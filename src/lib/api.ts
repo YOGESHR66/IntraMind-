@@ -225,6 +225,66 @@ export async function uploadDocumentWithStreamingProgress(
     return { success: true, document: finalDoc, message: finalMsg };
   }
 
+  // Fallback 1: Check if the document was already successfully saved in the backend
+  try {
+    const docsRes = await fetchApi('/api/documents');
+    if (docsRes.ok) {
+      const docsData = await docsRes.json();
+      if (Array.isArray(docsData.documents)) {
+        const found = docsData.documents.find((d: PDFDocument) => d.name === file.name);
+        if (found) {
+          onProgress?.({
+            stage: 'complete',
+            percent: 100,
+            fileName: file.name,
+            fileSize: file.size,
+            currentChunk: found.chunkCount,
+            totalChunks: found.chunkCount,
+            detail: `Document ${file.name} successfully indexed.`,
+          });
+          return {
+            success: true,
+            document: found,
+            message: `Successfully indexed ${file.name} (${found.chunkCount} vector chunks).`,
+          };
+        }
+      }
+    }
+  } catch {
+    // continue to non-streaming upload fallback
+  }
+
+  // Fallback 2: Execute direct standard upload if stream didn't return final payload
+  try {
+    const directRes = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+      signal,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (directRes.ok) {
+      const json = await directRes.json();
+      if (json.document) {
+        onProgress?.({
+          stage: 'complete',
+          percent: 100,
+          fileName: file.name,
+          fileSize: file.size,
+          currentChunk: json.document.chunkCount,
+          totalChunks: json.document.chunkCount,
+          detail: json.message || 'Document indexed successfully',
+        });
+        return { success: true, document: json.document, message: json.message };
+      }
+    }
+  } catch (err: any) {
+    if (signal?.aborted) {
+      return { success: false, aborted: true, error: 'Upload aborted by user.' };
+    }
+  }
+
   throw new Error('Indexing completed without document payload.');
 }
 

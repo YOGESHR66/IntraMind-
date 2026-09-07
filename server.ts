@@ -7,6 +7,7 @@ import {
   getDocuments,
   getChunks,
   deleteDocument,
+  clearAllDocuments,
   processAndIndexFile,
   processAndIndexPDF,
   performSemanticSearch,
@@ -50,6 +51,12 @@ async function startServer() {
   app.get("/api/chunks", (_req, res) => {
     const chunks = getChunks();
     res.json({ chunks });
+  });
+
+  // Clear all uploaded documents from workspace
+  app.delete("/api/documents", (_req, res) => {
+    clearAllDocuments();
+    res.json({ success: true, message: "All documents and vector chunks removed from workspace." });
   });
 
   // Delete document
@@ -101,9 +108,12 @@ async function startServer() {
       const abortController = new AbortController();
       let isClientClosed = false;
 
-      req.on("close", () => {
-        isClientClosed = true;
-        abortController.abort();
+      // Only abort if client forcibly disconnects before response completes
+      res.on("close", () => {
+        if (!res.writableEnded) {
+          isClientClosed = true;
+          abortController.abort();
+        }
       });
 
       try {
@@ -251,6 +261,7 @@ async function startServer() {
         similarityThreshold: 0.15,
         temperature: 0.2,
         selectedDocIds: [],
+        preciseOutput: false,
         ...settings,
       };
 

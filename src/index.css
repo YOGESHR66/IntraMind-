@@ -4,19 +4,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: 260 87% 3%;
-  --foreground: 40 6% 95%;
-  --hero-sub: 40 6% 82%;
+  --background: 0 0% 0%;
+  --foreground: 0 0% 98%;
+  --hero-sub: 0 0% 80%;
   --font-sans: 'Geist Sans', 'Inter', system-ui, -apple-system, sans-serif;
   --font-general: 'General Sans', 'Outfit', system-ui, sans-serif;
   --color-brand-green: #9fff00;
-  --color-bg-base: #EDEEF5;
+  --color-bg-base: #000000;
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background-color: #000000;
+  color: #ffffff;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
@@ -75,6 +75,12 @@ body {
   background: rgba(255, 255, 255, 0.18);
   border-color: rgba(255, 255, 255, 0.35);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* 5-second notification countdown bar */
+@keyframes shrinkWidth {
+  from { width: 100%; }
+  to { width: 0%; }
 }
 
 /* Custom subtle animations for lively adaptable UI */

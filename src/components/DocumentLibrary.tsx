@@ -146,17 +146,15 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   const allSelected = selectedDocIds.length === 0 || selectedDocIds.length === documents.length;
 
   return (
-    <div className={`rounded-2xl p-3.5 sm:p-5 flex flex-col h-full min-h-0 space-y-3 shadow-xs overflow-hidden border ${
-      theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-    }`}>
+    <div className="rounded-2xl p-3.5 sm:p-5 flex flex-col h-full min-h-0 space-y-3 shadow-2xl overflow-hidden border bg-neutral-950 border-neutral-850 text-neutral-100">
       {/* Header section */}
-      <div className={`flex items-center justify-between pb-2.5 border-b shrink-0 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
+      <div className="flex items-center justify-between pb-2.5 border-b shrink-0 border-neutral-850">
         <div>
-          <h2 className={`text-sm font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className="text-sm font-bold flex items-center gap-2 text-white">
             <Layers className="w-4 h-4 text-indigo-400" />
             Document Library ({documents.length})
           </h2>
-          <p className={`text-[11px] mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className="text-[11px] mt-0.5 text-neutral-400">
             Active RAG Scope: {selectedDocIds.length === 0 ? 'All Documents' : `${selectedDocIds.length} Selected`}
           </p>
         </div>
@@ -164,11 +162,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
         {documents.length > 0 && (
           <button
             onClick={allSelected ? onDeselectAllDocs : onSelectAllDocs}
-            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
-              theme === 'dark'
-                ? 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border-slate-700'
-                : 'text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border-slate-200'
-            }`}
+            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-850 border-neutral-800"
           >
             {allSelected ? 'Clear Scope' : 'Select All'}
           </button>
@@ -176,28 +170,59 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
       </div>
 
       {uploadSuccessNotice && (
-        <div className="bg-emerald-50 border border-emerald-200/90 text-emerald-950 p-3 rounded-xl flex items-center justify-between text-xs font-medium shadow-2xs shrink-0">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="p-1 bg-emerald-500 text-white rounded-lg shrink-0">
+        <div
+          className={`relative overflow-hidden p-3 rounded-xl flex items-center justify-between text-xs font-medium shadow-md transition-all shrink-0 border ${
+            theme === 'dark'
+              ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-100 shadow-emerald-950/40'
+              : 'bg-emerald-50 border-emerald-200/90 text-emerald-950 shadow-emerald-100/60'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+            <div className="p-1 bg-emerald-500 text-white rounded-lg shrink-0 shadow-xs">
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <div className="truncate">
-              <span className="font-extrabold text-slate-900">Uploaded & Indexed:</span>
-              <span className="font-bold text-emerald-800 ml-1.5 font-mono truncate">{uploadSuccessNotice.docName}</span>
-              <span className="text-[11px] text-slate-500 font-normal ml-2">
+            <div className="truncate flex items-center gap-1.5 flex-wrap">
+              <span className={theme === 'dark' ? 'font-extrabold text-white' : 'font-extrabold text-slate-900'}>
+                Uploaded & Indexed:
+              </span>
+              <span className={`font-bold font-mono truncate ${theme === 'dark' ? 'text-emerald-300' : 'text-emerald-800'}`}>
+                {uploadSuccessNotice.docName}
+              </span>
+              <span className={`text-[11px] font-normal ${theme === 'dark' ? 'text-emerald-200/70' : 'text-slate-500'}`}>
                 ({uploadSuccessNotice.chunkCount} vector chunks created)
               </span>
             </div>
           </div>
-          {onDismissUploadNotice && (
-            <button
-              onClick={onDismissUploadNotice}
-              className="p-1 hover:bg-emerald-100 rounded-md text-slate-600 hover:text-slate-900 transition-colors cursor-pointer shrink-0 ml-2"
-              title="Dismiss"
+          <div className="flex items-center space-x-2 shrink-0 ml-2">
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md hidden sm:inline ${
+                theme === 'dark'
+                  ? 'bg-emerald-900/60 text-emerald-300/80 border border-emerald-700/50'
+                  : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+              5s
+            </span>
+            {onDismissUploadNotice && (
+              <button
+                onClick={onDismissUploadNotice}
+                className={`p-1 rounded-md transition-colors cursor-pointer shrink-0 ${
+                  theme === 'dark'
+                    ? 'hover:bg-emerald-800/40 text-emerald-300 hover:text-white'
+                    : 'hover:bg-emerald-100 text-slate-600 hover:text-slate-900'
+                }`}
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div
+            className="absolute bottom-0 left-0 h-[2.5px] bg-emerald-500"
+            style={{
+              animation: 'shrinkWidth 5s linear forwards',
+            }}
+          />
         </div>
       )}
 

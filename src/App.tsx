@@ -7,16 +7,26 @@ import { DocumentViewer } from './components/DocumentViewer';
 import { VectorInspector } from './components/VectorInspector';
 import { ChatInterface } from './components/ChatInterface';
 import { SettingsModal } from './components/SettingsModal';
-import { PDFDocument, DocumentChunk, ChatMessage, Citation, RAGSettings, UploadProgressState } from './types';
+import { PDFDocument, DocumentChunk, ChatMessage, Citation, RAGSettings, UploadProgressState, ChatSession } from './types';
 import { fetchApi, uploadDocumentWithStreamingProgress } from './lib/api';
+import { ChatHistoryModal } from './components/ChatHistoryModal';
+import {
+  loadAllSessions,
+  saveAllSessions,
+  loadActiveSessionId,
+  saveActiveSessionId,
+  saveOrUpdateSession,
+  deleteSessionFromStorage,
+  clearAllSessionsFromStorage,
+} from './lib/chatStorage';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<'login' | 'app'>('login');
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Theme State ('dark' | 'light')
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  // Theme State (Pure black theme exclusively)
+  const theme = 'dark';
 
   // RAG State
   const [documents, setDocuments] = useState<PDFDocument[]>([]);
@@ -32,6 +42,11 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isQueryLoading, setIsQueryLoading] = useState<boolean>(false);
 
+  // Chat Session Persistence State
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
@@ -42,12 +57,42 @@ export default function App() {
   const [lastFailedFile, setLastFailedFile] = useState<File | null>(null);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [ragSettings, setRagSettings] = useState<RAGSettings>({
-    topK: 4,
-    similarityThreshold: 0.15,
-    temperature: 0.2,
-    selectedDocIds: [],
+  const [ragSettings, setRagSettings] = useState<RAGSettings>(() => {
+    try {
+      const saved = localStorage.getItem('intramind_rag_settings');
+      if (saved) {
+        return {
+          topK: 4,
+          similarityThreshold: 0.15,
+          temperature: 0.2,
+          selectedDocIds: [],
+          preciseOutput: false,
+          ...JSON.parse(saved),
+        };
+      }
+    } catch {}
+    return {
+      topK: 4,
+      similarityThreshold: 0.15,
+      temperature: 0.2,
+      selectedDocIds: [],
+      preciseOutput: false,
+    };
   });
+
+  const handleUpdateRagSettings = (newS: Partial<RAGSettings>) => {
+    setRagSettings(prev => {
+      const next = { ...prev, ...newS };
+      try {
+        localStorage.setItem('intramind_rag_settings', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleTogglePreciseOutput = () => {
+    handleUpdateRagSettings({ preciseOutput: !ragSettings.preciseOutput });
+  };
 
   const fetchDocuments = async () => {
     try {
@@ -57,11 +102,23 @@ export default function App() {
       if (!contentType.includes('application/json')) return;
 
       const data = await res.json();
-      const docs: PDFDocument[] = data.documents || [];
+      let docs: PDFDocument[] = data.documents || [];
+
+      // Prune any stale resnet or sample files
+      const staleDocs = docs.filter(d => d.name?.toLowerCase().includes('resnet') || d.isSample);
+      if (staleDocs.length > 0) {
+        for (const s of staleDocs) {
+          fetchApi(`/api/documents/${s.id}`, { method: 'DELETE' }).catch(() => {});
+        }
+        docs = docs.filter(d => !d.name?.toLowerCase().includes('resnet') && !d.isSample);
+      }
+
       setDocuments(docs);
 
       if (docs.length > 0 && !activeDoc) {
         setActiveDoc(docs[0]);
+      } else if (docs.length === 0) {
+        setActiveDoc(null);
       }
     } catch (err) {
       console.error('Failed to load documents:', err);
@@ -96,6 +153,23 @@ export default function App() {
 
   useEffect(() => {
     fetchDocuments();
+    const loadedSessions = loadAllSessions();
+    setSessions(loadedSessions);
+
+    // Always start fresh from the workspace area on application launch/reopen.
+    // Previous chats are securely preserved in the history section.
+    setActiveSessionId(null);
+    saveActiveSessionId(null);
+    setMessages([]);
+  }, []);
+
+  // Ensure active session pointer is cleared before unload so reopening always lands in workspace
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveActiveSessionId(null);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   useEffect(() => {
@@ -103,6 +177,16 @@ export default function App() {
       fetchChunksForActiveDoc(activeDoc.id);
     }
   }, [activeDoc?.id]);
+
+  // Automatically dismiss the upload confirmation notification after 5 seconds
+  useEffect(() => {
+    if (uploadSuccessNotice) {
+      const timer = setTimeout(() => {
+        setUploadSuccessNotice(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [uploadSuccessNotice]);
 
   function formatErrorMessage(err: any): string {
     if (!err) return 'An unexpected error occurred';
@@ -185,11 +269,11 @@ export default function App() {
         controller.signal
       );
 
-      await fetchDocuments();
-
       if (result.document) {
         const doc: PDFDocument = result.document;
+        setDocuments((prev) => [doc, ...prev.filter((d) => d.id !== doc.id)]);
         setActiveDoc(doc);
+        setSelectedDocIds((prev) => Array.from(new Set([doc.id, ...prev])));
         setLastUploadedDocId(doc.id);
         setUploadSuccessNotice({
           docName: doc.name,
@@ -200,14 +284,17 @@ export default function App() {
         setActiveTab('chat');
       }
 
+      // Background sync
+      fetchDocuments().catch(() => {});
+
       setIsUploading(false);
       setUploadingFileName(null);
       uploadAbortControllerRef.current = null;
 
-      // Keep success state visible briefly for clear feedback
+      // Clean feedback transition
       setTimeout(() => {
         setUploadProgress(null);
-      }, 1200);
+      }, 500);
     } catch (err: any) {
       const isAborted =
         controller.signal.aborted ||
@@ -265,14 +352,16 @@ export default function App() {
   };
 
   const handleDeleteDoc = async (docId: string) => {
+    // Optimistically update UI so document pill disappears immediately
+    setDocuments(prev => prev.filter(d => d.id !== docId));
+    setSelectedDocIds(prev => prev.filter(id => id !== docId));
+    if (activeDoc?.id === docId) {
+      const remaining = documents.filter(d => d.id !== docId);
+      setActiveDoc(remaining.length > 0 ? remaining[0] : null);
+    }
     try {
       const res = await fetchApi(`/api/documents/${docId}`, { method: 'DELETE' });
       if (res.ok) {
-        setSelectedDocIds(prev => prev.filter(id => id !== docId));
-        if (activeDoc?.id === docId) {
-          const remaining = documents.filter(d => d.id !== docId);
-          setActiveDoc(remaining.length > 0 ? remaining[0] : null);
-        }
         await fetchDocuments();
       }
     } catch (err) {
@@ -314,7 +403,22 @@ export default function App() {
       timestamp: new Date().toISOString(),
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    let currentSessionId = activeSessionId;
+    if (!currentSessionId) {
+      currentSessionId = `session-${Date.now()}`;
+      setActiveSessionId(currentSessionId);
+      saveActiveSessionId(currentSessionId);
+    }
+
+    const messagesWithUser = [...messages, userMsg];
+    setMessages(messagesWithUser);
+    const updatedAfterUser = saveOrUpdateSession(
+      currentSessionId,
+      messagesWithUser,
+      selectedDocIds
+    );
+    setSessions(updatedAfterUser);
+
     setIsQueryLoading(true);
 
     try {
@@ -344,7 +448,14 @@ export default function App() {
         reasoningTimeMs: data.reasoningTimeMs,
       };
 
-      setMessages(prev => [...prev, assistantMsg]);
+      const finalMessages = [...messagesWithUser, assistantMsg];
+      setMessages(finalMessages);
+      const updatedAfterBot = saveOrUpdateSession(
+        currentSessionId,
+        finalMessages,
+        selectedDocIds
+      );
+      setSessions(updatedAfterBot);
     } catch (err) {
       const errorMsg: ChatMessage = {
         id: `assistant-err-${Date.now()}`,
@@ -354,7 +465,14 @@ export default function App() {
         }`,
         timestamp: new Date().toISOString(),
       };
-      setMessages(prev => [...prev, errorMsg]);
+      const errorMessages = [...messagesWithUser, errorMsg];
+      setMessages(errorMessages);
+      const updatedAfterError = saveOrUpdateSession(
+        currentSessionId,
+        errorMessages,
+        selectedDocIds
+      );
+      setSessions(updatedAfterError);
     } finally {
       setIsQueryLoading(false);
     }
@@ -369,7 +487,22 @@ export default function App() {
     setActiveTab('viewer');
   };
 
-  const handleResetChat = () => {
+  const handleSelectSession = (session: ChatSession) => {
+    setActiveSessionId(session.id);
+    saveActiveSessionId(session.id);
+    setMessages(session.messages);
+    setActiveTab('chat');
+  };
+
+  const handleExitChat = () => {
+    // If there is an active conversation, ensure it is safely synced to the History section
+    if (activeSessionId && messages.length > 0) {
+      const updated = saveOrUpdateSession(activeSessionId, messages, selectedDocIds);
+      setSessions(updated);
+    }
+    // Clear active chat state and active session pointer so the app returns directly to the workspace
+    setActiveSessionId(null);
+    saveActiveSessionId(null);
     setMessages([]);
     setIsQueryLoading(false);
     setIsUploading(false);
@@ -377,6 +510,43 @@ export default function App() {
     setUploadSuccessNotice(null);
     setUploadError(null);
     setActiveTab('chat');
+  };
+
+  const handleNewChat = () => {
+    handleExitChat();
+  };
+
+  const handleResetChat = () => {
+    handleExitChat();
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    const updated = deleteSessionFromStorage(sessionId);
+    setSessions(updated);
+    if (activeSessionId === sessionId) {
+      if (updated.length > 0) {
+        setActiveSessionId(updated[0].id);
+        saveActiveSessionId(updated[0].id);
+        setMessages(updated[0].messages);
+      } else {
+        handleNewChat();
+      }
+    }
+  };
+
+  const handleRenameSession = (sessionId: string, newTitle: string) => {
+    const all = loadAllSessions();
+    const updated = all.map(s =>
+      s.id === sessionId ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s
+    );
+    saveAllSessions(updated);
+    setSessions(updated);
+  };
+
+  const handleClearAllSessions = () => {
+    clearAllSessionsFromStorage();
+    setSessions([]);
+    handleNewChat();
   };
 
   const totalChunksCount = documents.reduce((acc, d) => acc + d.chunkCount, 0);
@@ -403,51 +573,50 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen selection:bg-indigo-500 selection:text-white font-sans flex flex-col relative transition-colors duration-200 ${
-      theme === 'dark' ? 'bg-[#0a0d14] text-slate-100' : 'bg-slate-100 text-slate-900'
-    }`}>
-      <main className="flex-1 w-full relative overflow-hidden">
-        {/* Subtle Ambient Background Glow */}
-        {theme === 'dark' ? (
-          <>
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
-            <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
-          </>
-        ) : (
-          <>
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-sky-400/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-indigo-400/10 rounded-full blur-[100px] pointer-events-none" />
-          </>
-        )}
+    <div className="min-h-screen selection:bg-indigo-500 selection:text-white font-sans flex flex-col relative bg-black text-slate-100 transition-colors duration-200">
+      <main className="flex-1 w-full relative overflow-hidden bg-black">
+        {/* Subtle Ambient Background Glow on Pure Black */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-600/10 rounded-full blur-[140px] pointer-events-none animate-pulse-glow" />
+        <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="h-screen max-h-screen flex flex-col relative z-10 overflow-hidden">
           <Header
             documents={documents}
             totalChunks={totalChunksCount}
             theme={theme}
-            setTheme={setTheme}
             onOpenUpload={() => setActiveTab('library')}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenVectorInspector={() => fetchChunksForActiveDoc()}
             onResetChat={handleResetChat}
+            onExitChat={handleExitChat}
+            hasActiveChat={messages.length > 0}
+            onOpenHistory={() => setIsHistoryModalOpen(true)}
+            sessionCount={sessions.length}
             onPortalHome={() => setViewMode('login')}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
 
-            <div className="flex-1 w-full px-2 sm:px-4 md:px-6 py-2 sm:py-3 flex flex-col min-h-0 overflow-hidden">
-              {activeTab === 'chat' && (
+            <div className="flex-1 w-full px-2 sm:px-4 md:px-6 py-2 sm:py-3 flex flex-col min-h-0 overflow-hidden relative">
+              <div className={`h-full w-full flex-col min-h-0 ${activeTab === 'chat' ? 'flex' : 'hidden'}`}>
                 <ChatInterface
                   messages={messages}
                   onSendMessage={handleSendMessage}
                   isLoading={isQueryLoading}
                   onSelectCitation={handleSelectCitation}
                   settings={ragSettings}
+                  preciseOutput={!!ragSettings.preciseOutput}
+                  onTogglePreciseOutput={handleTogglePreciseOutput}
                   documents={documents}
                   theme={theme}
                   onOpenLibrary={() => setActiveTab('library')}
                   onUploadFile={handleUploadFile}
                   onResetChat={handleResetChat}
+                  onExitChat={handleExitChat}
+                  onOpenHistory={() => setIsHistoryModalOpen(true)}
+                  sessionsCount={sessions.length}
+                  recentSessions={sessions}
+                  onSelectSession={handleSelectSession}
                   isUploading={isUploading}
                   uploadingFileName={uploadingFileName}
                   uploadSuccessNotice={uploadSuccessNotice}
@@ -460,10 +629,12 @@ export default function App() {
                   lastUploadedDocId={lastUploadedDocId}
                   uploadProgress={uploadProgress}
                   onAbortUpload={handleAbortUpload}
+                  onDeleteDoc={handleDeleteDoc}
+                  onToggleDocSelection={handleToggleDocSelection}
                 />
-              )}
+              </div>
 
-              {activeTab === 'library' && (
+              <div className={`h-full w-full flex-col min-h-0 ${activeTab === 'library' ? 'flex' : 'hidden'}`}>
                 <DocumentLibrary
                   documents={documents}
                   selectedDocIds={selectedDocIds}
@@ -486,9 +657,9 @@ export default function App() {
                   uploadProgress={uploadProgress}
                   onAbortUpload={handleAbortUpload}
                 />
-              )}
+              </div>
 
-              {activeTab === 'viewer' && (
+              <div className={`h-full w-full flex-col min-h-0 ${activeTab === 'viewer' ? 'flex' : 'hidden'}`}>
                 <DocumentViewer
                   documents={documents}
                   activeDoc={activeDoc}
@@ -498,15 +669,15 @@ export default function App() {
                   isLoadingChunks={isLoadingChunks}
                   theme={theme}
                 />
-              )}
+              </div>
 
-              {activeTab === 'vector' && (
+              <div className={`h-full w-full flex-col min-h-0 ${activeTab === 'vector' ? 'flex' : 'hidden'}`}>
                 <VectorInspector
                   chunks={allChunks}
                   settings={ragSettings}
                   theme={theme}
                 />
-              )}
+              </div>
             </div>
           </div>
       </main>
@@ -515,10 +686,9 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={ragSettings}
-        onUpdateSettings={(newS) => setRagSettings(prev => ({ ...prev, ...newS }))}
+        onUpdateSettings={handleUpdateRagSettings}
         documents={documents}
         theme={theme}
-        setTheme={setTheme}
       />
 
       <LoginModal
@@ -529,6 +699,19 @@ export default function App() {
           setUserEmail(email);
           setViewMode('app');
         }}
+      />
+
+      <ChatHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
+        onRenameSession={handleRenameSession}
+        onClearAllSessions={handleClearAllSessions}
+        onNewChat={handleNewChat}
+        theme={theme}
       />
     </div>
   );

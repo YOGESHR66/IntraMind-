@@ -49,11 +49,22 @@ export interface ChatMessage {
   isStreaming?: boolean;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+  docIds?: string[];
+  lastQuery?: string;
+}
+
 export interface RAGSettings {
   topK: number;
   similarityThreshold: number; // 0 to 1
   temperature: number;
   selectedDocIds: string[]; // empty array = search all docs
+  preciseOutput?: boolean; // When true: produces concise 2-3 line bullet point answers
 }
 
 export type UploadStage =
