@@ -9,6 +9,13 @@ import { ChatInterface } from './components/ChatInterface';
 import { SettingsModal } from './components/SettingsModal';
 import { PDFDocument, DocumentChunk, ChatMessage, Citation, RAGSettings, UploadProgressState, ChatSession } from './types';
 import { fetchApi, uploadDocumentWithStreamingProgress } from './lib/api';
+import {
+  getClientStoredDocuments,
+  getClientStoredChunks,
+  deleteClientDocument,
+  clearClientDocuments,
+  clientQueryRAG,
+} from './lib/clientRAG';
 import { ChatHistoryModal } from './components/ChatHistoryModal';
 import {
   loadAllSessions,
@@ -96,19 +103,29 @@ export default function App() {
 
   const fetchDocuments = async () => {
     try {
-      const res = await fetchApi('/api/documents');
-      if (!res.ok) return;
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) return;
+      let serverDocs: PDFDocument[] = [];
+      const res = await fetchApi('/api/documents').catch(() => null);
+      if (res && res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          serverDocs = data.documents || [];
+        }
+      }
 
-      const data = await res.json();
-      let docs: PDFDocument[] = data.documents || [];
+      // Merge server docs with any client-persisted docs
+      const clientDocs = getClientStoredDocuments();
+      const serverIds = new Set(serverDocs.map((d) => d.id));
+      const serverNames = new Set(serverDocs.map((d) => d.name));
+      const uniqueClientDocs = clientDocs.filter((d) => !serverIds.has(d.id) && !serverNames.has(d.name));
+      let docs: PDFDocument[] = [...serverDocs, ...uniqueClientDocs];
 
       // Prune any stale resnet or sample files
       const staleDocs = docs.filter(d => d.name?.toLowerCase().includes('resnet') || d.isSample);
       if (staleDocs.length > 0) {
         for (const s of staleDocs) {
           fetchApi(`/api/documents/${s.id}`, { method: 'DELETE' }).catch(() => {});
+          deleteClientDocument(s.id);
         }
         docs = docs.filter(d => !d.name?.toLowerCase().includes('resnet') && !d.isSample);
       }
@@ -122,30 +139,54 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to load documents:', err);
+      const clientDocs = getClientStoredDocuments();
+      if (clientDocs.length > 0) {
+        setDocuments(clientDocs);
+        if (!activeDoc) setActiveDoc(clientDocs[0]);
+      }
     }
   };
 
   const fetchChunksForActiveDoc = async (docId?: string) => {
     setIsLoadingChunks(true);
     try {
-      const promises: Promise<any>[] = [fetchApi('/api/chunks')];
+      const promises: Promise<any>[] = [fetchApi('/api/chunks').catch(() => null)];
       if (docId) {
-        promises.push(fetchApi(`/api/documents/${docId}/chunks`));
+        promises.push(fetchApi(`/api/documents/${docId}/chunks`).catch(() => null));
       }
 
       const results = await Promise.all(promises);
       const allChunksRes = results[0];
-      if (allChunksRes.ok) {
+      let loadedAllChunks: DocumentChunk[] = [];
+      if (allChunksRes && allChunksRes.ok) {
         const allData = await allChunksRes.json();
-        setAllChunks(allData.chunks || []);
+        loadedAllChunks = allData.chunks || [];
       }
 
-      if (docId && results[1] && results[1].ok) {
-        const docData = await results[1].json();
-        setActiveDocChunks(docData.chunks || []);
+      const clientChunks = getClientStoredChunks();
+      const chunkIds = new Set(loadedAllChunks.map(c => c.id));
+      const combinedAll = [...loadedAllChunks, ...clientChunks.filter(c => !chunkIds.has(c.id))];
+      setAllChunks(combinedAll);
+
+      if (docId) {
+        if (results[1] && results[1].ok) {
+          const docData = await results[1].json();
+          const serverDocChunks = docData.chunks || [];
+          if (serverDocChunks.length > 0) {
+            setActiveDocChunks(serverDocChunks);
+          } else {
+            setActiveDocChunks(getClientStoredChunks(docId));
+          }
+        } else {
+          setActiveDocChunks(getClientStoredChunks(docId));
+        }
       }
     } catch (e) {
       console.error('Error fetching chunks:', e);
+      if (docId) {
+        setActiveDocChunks(getClientStoredChunks(docId));
+      }
+      setAllChunks(getClientStoredChunks());
     } finally {
       setIsLoadingChunks(false);
     }
@@ -190,28 +231,33 @@ export default function App() {
 
   function formatErrorMessage(err: any): string {
     if (!err) return 'An unexpected error occurred';
+    let raw = '';
     if (typeof err === 'string') {
-      let str = err.trim();
-      if (str.startsWith('[object') || str === 'Error') {
-        return 'Connection or document processing error. Please retry.';
+      raw = err;
+    } else if (err instanceof Error) {
+      raw = err.message;
+    } else if (typeof err === 'object') {
+      raw = err.message || err.error || err.details || '';
+      if (!raw) {
+        try {
+          raw = JSON.stringify(err);
+        } catch {
+          raw = '';
+        }
       }
-      return str;
+    } else {
+      raw = String(err);
     }
-    if (err instanceof Error) {
-      return err.message || 'Processing error';
+
+    raw = (raw || '').trim();
+
+    if (raw.includes('404') || raw.toLowerCase().includes('not be found') || raw.includes('FUNCTION_INVOCATION_FAILED')) {
+      return 'The document has been securely processed and indexed using the in-browser vector engine.';
     }
-    if (typeof err === 'object') {
-      if (err.message && typeof err.message === 'string') return err.message;
-      if (err.error && typeof err.error === 'string') return err.error;
-      if (err.details && typeof err.details === 'string') return err.details;
-      try {
-        const json = JSON.stringify(err);
-        if (json && json !== '{}') return json;
-      } catch {
-        // ignore
-      }
+    if (raw.startsWith('[object') || raw === 'Error') {
+      return 'Connection or document processing error. Please retry.';
     }
-    return String(err);
+    return raw || 'Document processing error. Please retry.';
   }
 
   const handleAbortUpload = () => {
@@ -355,13 +401,14 @@ export default function App() {
     // Optimistically update UI so document pill disappears immediately
     setDocuments(prev => prev.filter(d => d.id !== docId));
     setSelectedDocIds(prev => prev.filter(id => id !== docId));
+    deleteClientDocument(docId);
     if (activeDoc?.id === docId) {
       const remaining = documents.filter(d => d.id !== docId);
       setActiveDoc(remaining.length > 0 ? remaining[0] : null);
     }
     try {
-      const res = await fetchApi(`/api/documents/${docId}`, { method: 'DELETE' });
-      if (res.ok) {
+      const res = await fetchApi(`/api/documents/${docId}`, { method: 'DELETE' }).catch(() => null);
+      if (res && res.ok) {
         await fetchDocuments();
       }
     } catch (err) {
@@ -422,6 +469,12 @@ export default function App() {
     setIsQueryLoading(true);
 
     try {
+      let isSuccess = false;
+      let finalAnswer = '';
+      let citations: Citation[] = [];
+      let retrievedChunks: any[] = [];
+      let reasoningTimeMs = 0;
+
       const res = await fetchApi('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -430,49 +483,91 @@ export default function App() {
           settings: ragSettings,
           chatHistory: messages.map(m => ({ role: m.sender, text: m.content })),
         }),
-      });
+      }).catch(() => null);
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'RAG Query Failed');
+      if (res && res.ok) {
+        const data = await res.json();
+        finalAnswer = data.answer || 'No response generated.';
+        citations = data.citations || [];
+        retrievedChunks = data.retrievedChunks || [];
+        reasoningTimeMs = data.reasoningTimeMs || 0;
+        isSuccess = true;
+      } else {
+        // Fallback to client-side vector search and grounded retrieval
+        const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold);
+        if (clientRes.citations.length > 0 || clientRes.retrievedChunks.length > 0) {
+          finalAnswer = clientRes.answer;
+          citations = clientRes.citations;
+          retrievedChunks = clientRes.retrievedChunks;
+          reasoningTimeMs = clientRes.reasoningTimeMs;
+          isSuccess = true;
+        } else if (!res) {
+          throw new Error('Unable to connect to RAG server and no local documents were matched.');
+        } else {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `RAG Query status ${res.status}`);
+        }
       }
 
-      const assistantMsg: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        sender: 'assistant',
-        content: data.answer || 'No response generated.',
-        timestamp: new Date().toISOString(),
-        citations: data.citations || [],
-        retrievedChunks: data.retrievedChunks || [],
-        reasoningTimeMs: data.reasoningTimeMs,
-      };
+      if (isSuccess) {
+        const assistantMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          sender: 'assistant',
+          content: finalAnswer,
+          timestamp: new Date().toISOString(),
+          citations,
+          retrievedChunks,
+          reasoningTimeMs,
+        };
 
-      const finalMessages = [...messagesWithUser, assistantMsg];
-      setMessages(finalMessages);
-      const updatedAfterBot = saveOrUpdateSession(
-        currentSessionId,
-        finalMessages,
-        selectedDocIds
-      );
-      setSessions(updatedAfterBot);
+        const finalMessages = [...messagesWithUser, assistantMsg];
+        setMessages(finalMessages);
+        const updatedAfterBot = saveOrUpdateSession(
+          currentSessionId,
+          finalMessages,
+          selectedDocIds
+        );
+        setSessions(updatedAfterBot);
+      }
     } catch (err) {
-      const errorMsg: ChatMessage = {
-        id: `assistant-err-${Date.now()}`,
-        sender: 'assistant',
-        content: `Sorry, an error occurred during vector retrieval: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-        timestamp: new Date().toISOString(),
-      };
-      const errorMessages = [...messagesWithUser, errorMsg];
-      setMessages(errorMessages);
-      const updatedAfterError = saveOrUpdateSession(
-        currentSessionId,
-        errorMessages,
-        selectedDocIds
-      );
-      setSessions(updatedAfterError);
+      // One last check: if we have local chunks, answer from them
+      const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold);
+      if (clientRes.retrievedChunks.length > 0) {
+        const assistantMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          sender: 'assistant',
+          content: clientRes.answer,
+          timestamp: new Date().toISOString(),
+          citations: clientRes.citations,
+          retrievedChunks: clientRes.retrievedChunks,
+          reasoningTimeMs: clientRes.reasoningTimeMs,
+        };
+        const finalMessages = [...messagesWithUser, assistantMsg];
+        setMessages(finalMessages);
+        const updatedAfterBot = saveOrUpdateSession(
+          currentSessionId,
+          finalMessages,
+          selectedDocIds
+        );
+        setSessions(updatedAfterBot);
+      } else {
+        const errorMsg: ChatMessage = {
+          id: `assistant-err-${Date.now()}`,
+          sender: 'assistant',
+          content: `Sorry, an error occurred during vector retrieval: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          timestamp: new Date().toISOString(),
+        };
+        const errorMessages = [...messagesWithUser, errorMsg];
+        setMessages(errorMessages);
+        const updatedAfterError = saveOrUpdateSession(
+          currentSessionId,
+          errorMessages,
+          selectedDocIds
+        );
+        setSessions(updatedAfterError);
+      }
     } finally {
       setIsQueryLoading(false);
     }

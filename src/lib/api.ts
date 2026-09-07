@@ -1,4 +1,5 @@
 import { UploadProgressState, PDFDocument } from '../types';
+import { clientIndexDocument } from './clientRAG';
 
 function cloneBody(body: any): any {
   if (body instanceof FormData) {
@@ -106,15 +107,42 @@ export async function uploadDocumentWithStreamingProgress(
     detail: `Transmitting ${file.name} to IntraMind RAG Engine...`,
   });
 
-  const res = await fetch('/api/upload?stream=true', {
-    method: 'POST',
-    body: formData,
-    signal,
-    headers: {
-      'Accept': 'text/event-stream, application/x-ndjson',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch('/api/upload?stream=true', {
+      method: 'POST',
+      body: formData,
+      signal,
+      headers: {
+        'Accept': 'text/event-stream, application/x-ndjson',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+  } catch (fetchErr: any) {
+    if (signal?.aborted) {
+      return { success: false, aborted: true, error: 'Upload aborted by user.' };
+    }
+    // If backend connection is unreachable (e.g. offline or static host), index client-side
+    console.info('Backend upload request failed, falling back to client-side indexing:', fetchErr);
+    const doc = await clientIndexDocument(file, onProgress);
+    return {
+      success: true,
+      document: doc,
+      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+    };
+  }
+
+  // If server returns 404 (e.g. static Vite hosting on Vercel without backend function or server starting up),
+  // automatically index document in-browser so user never sees a 404 error!
+  if (res.status === 404) {
+    console.info('Backend returned 404 for /api/upload. Indexing document locally in browser...');
+    const doc = await clientIndexDocument(file, onProgress);
+    return {
+      success: true,
+      document: doc,
+      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+    };
+  }
 
   if (!res.ok && res.status !== 499) {
     let errText = `Upload error (${res.status})`;
@@ -122,10 +150,23 @@ export async function uploadDocumentWithStreamingProgress(
       const errJson = await res.json();
       if (errJson.error) {
         errText = typeof errJson.error === 'object' ? JSON.stringify(errJson.error) : String(errJson.error);
+      } else if (errJson.message) {
+        errText = String(errJson.message);
       }
     } catch {
       // ignore
     }
+
+    if (errText.includes('404') || errText.includes('not be found')) {
+      console.info('404 notice detected. Indexing document locally in browser...');
+      const doc = await clientIndexDocument(file, onProgress);
+      return {
+        success: true,
+        document: doc,
+        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+      };
+    }
+
     throw new Error(errText);
   }
 
@@ -285,7 +326,13 @@ export async function uploadDocumentWithStreamingProgress(
     }
   }
 
-  throw new Error('Indexing completed without document payload.');
+  // Final fallback: index locally in browser
+  const fallbackDoc = await clientIndexDocument(file, onProgress);
+  return {
+    success: true,
+    document: fallbackDoc,
+    message: `Indexed ${fallbackDoc.name} into ${fallbackDoc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+  };
 }
 
 
