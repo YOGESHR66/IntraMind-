@@ -4,12 +4,21 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import app from "./server/app";
 
-const PORT = 3000;
+// Default to 3000 for AI Studio environment (where PORT=3000 is required by reverse proxy).
+// On Render, process.env.RENDER is automatically 'true', so we bind to Render's allocated PORT.
+const PORT = process.env.RENDER && process.env.PORT
+  ? parseInt(process.env.PORT, 10)
+  : 3000;
 
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
   const hasDist = fs.existsSync(path.join(distPath, "index.html"));
   const isProduction = process.env.NODE_ENV === "production" || hasDist;
+
+  // Catch-all 404 handler for API routes before static/vite fallback
+  app.all("/api/*", (_req, res) => {
+    res.status(404).json({ error: "API endpoint not found" });
+  });
 
   // Vite middleware in development vs static serving in production
   if (!isProduction) {
@@ -24,11 +33,6 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-
-  // Catch-all 404 handler for API routes before static/vite fallback
-  app.all("/api/*", (_req, res) => {
-    res.status(404).json({ error: "API endpoint not found" });
-  });
 
   // Global error handler ensuring API calls always respond with JSON
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
