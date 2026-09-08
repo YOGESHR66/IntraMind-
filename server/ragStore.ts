@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import * as pdfParseModule from "pdf-parse";
 import mammoth from "mammoth";
 import fs from "fs";
@@ -43,19 +43,33 @@ async function callGeminiWithFallback(
     contents: any;
     config?: any;
     preferredModel?: string;
+    timeoutMs?: number;
   }
 ) {
-  // Use gemini-3.1-flash-lite as primary high-availability model (instant, zero 503 queue spikes),
-  // with fallback to gemini-3.8-flash
+  // Use gemini-3.1-flash-lite as primary high-availability model (instant, lowest queue latency),
+  // with resilient fallbacks to gemini-3.8-flash and gemini-flash-latest
+  const preferred = params.preferredModel || 'gemini-3.1-flash-lite';
   const modelsToTry = [
-    params.preferredModel || 'gemini-3.1-flash-lite',
+    preferred,
     'gemini-3.1-flash-lite',
     'gemini-3.8-flash',
+    'gemini-flash-latest',
   ];
 
   // Remove duplicates while preserving priority order
   const uniqueModels = Array.from(new Set(modelsToTry));
   let lastError: any = null;
+
+  // Generous 35s timeout (or custom timeout for large OCR) so models don't get aborted prematurely
+  const timeoutMs = params.timeoutMs || 35000;
+
+  // Apply LOW thinkingLevel by default to minimize reasoning latency and avoid timeouts
+  const mergedConfig = {
+    ...params.config,
+    thinkingConfig: params.config?.thinkingConfig ?? {
+      thinkingLevel: ThinkingLevel.LOW,
+    },
+  };
 
   for (const model of uniqueModels) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -63,12 +77,14 @@ async function callGeminiWithFallback(
         const generatePromise = ai.models.generateContent({
           model,
           contents: params.contents,
-          config: params.config,
+          config: mergedConfig,
         });
 
-        // 7500ms safety timeout per attempt so high-demand queue delays fail over immediately
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Model ${model} timed out after 7.5s`)), 7500)
+          setTimeout(
+            () => reject(new Error(`Model ${model} timed out after ${Math.round(timeoutMs / 1000)}s`)),
+            timeoutMs
+          )
         );
 
         const response = (await Promise.race([generatePromise, timeoutPromise])) as any;
@@ -87,11 +103,12 @@ async function callGeminiWithFallback(
           errStr.includes('429') ||
           errStr.includes('RESOURCE_EXHAUSTED') ||
           errStr.includes('quota');
+        const isTimeout = errStr.includes('timed out');
 
         console.warn(`[Gemini Resiliency] Model ${model} (attempt ${attempt + 1}/2): ${errStr.substring(0, 90)}... transitioning to resilient fallback.`);
 
-        if ((is503OrHighDemand || is429) && attempt === 0) {
-          await new Promise((r) => setTimeout(r, 350));
+        if ((is503OrHighDemand || is429 || isTimeout) && attempt === 0) {
+          await new Promise((r) => setTimeout(r, 450));
           continue;
         }
         break;
@@ -645,6 +662,7 @@ export async function processAndIndexFile(
         try {
           const response = await callGeminiWithFallback(ai, {
             preferredModel: 'gemini-3.1-flash-lite',
+            timeoutMs: 45000,
             contents: [
               {
                 inlineData: {
@@ -698,6 +716,7 @@ export async function processAndIndexFile(
       try {
         const response = await callGeminiWithFallback(ai, {
           preferredModel: 'gemini-3.1-flash-lite',
+          timeoutMs: 45000,
           contents: [
             {
               inlineData: {
