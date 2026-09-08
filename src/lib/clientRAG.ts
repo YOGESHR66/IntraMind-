@@ -94,7 +94,53 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 /**
- * In-browser text extractor supporting PDF, TXT, JSON, MD, CSV, DOCX
+ * Validates whether a text string is unreadable binary noise or compressed stream artifacts.
+ */
+export function isGibberishText(text: string): boolean {
+  if (!text || typeof text !== 'string') return true;
+  const clean = text.trim();
+  if (clean.length < 8) return false;
+
+  // Raw PDF internal objects / markers
+  if (
+    clean.includes('/FlateDecode') ||
+    clean.includes('/FontDescriptor') ||
+    clean.includes('/MediaBox') ||
+    clean.includes('endobj') ||
+    clean.includes('xref') ||
+    clean.includes('trailer<<')
+  ) {
+    return true;
+  }
+
+  // Check proportion of readable alphanumeric + spaces
+  const alphaNumericMatches = clean.match(/[a-zA-Z0-9\s]/g) || [];
+  const ratio = alphaNumericMatches.length / clean.length;
+  if (ratio < 0.65) return true;
+
+  // Check for clusters of 4+ symbols like ?#.*%;
+  if (/[!@#$%^&*()_+=~`[\]{}|\\:;"'<>,/?]{4,}/.test(clean)) return true;
+
+  // Check for random compressed byte strings
+  const words = clean.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length >= 3) {
+    let unreadableWords = 0;
+    for (const w of words) {
+      if (
+        /[A-Za-z]+[0-9%#$@*&_]+[A-Za-z]+/.test(w) ||
+        /[^a-zA-Z0-9\s.,;:'"?!()-]/.test(w)
+      ) {
+        unreadableWords++;
+      }
+    }
+    if (unreadableWords / words.length > 0.35) return true;
+  }
+
+  return false;
+}
+
+/**
+ * In-browser text extractor supporting PDF (with Flate decompression), TXT, JSON, MD, CSV, DOCX
  */
 export async function extractTextInBrowser(file: File): Promise<{ text: string; pageCount: number }> {
   const fileName = file.name.toLowerCase();
@@ -119,60 +165,148 @@ export async function extractTextInBrowser(file: File): Promise<{ text: string; 
     try {
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);
-      const textDecoder = new TextDecoder('latin1');
-      const rawPdf = textDecoder.decode(bytes);
-
-      const textChunks: string[] = [];
-
-      // Extract literal text within Tj operators
-      const tjRegex = /\(([^()]*)\)\s*Tj/gi;
-      let match: RegExpExecArray | null;
-      while ((match = tjRegex.exec(rawPdf)) !== null) {
-        if (match[1] && match[1].trim().length > 1) {
-          textChunks.push(match[1]);
-        }
-      }
-
-      // Extract text array TJ operators
-      const tjArrayRegex = /\[\s*((?:\([^()]*\)\s*|-?\d+\s*)+)\]\s*TJ/gi;
-      while ((match = tjArrayRegex.exec(rawPdf)) !== null) {
-        const inner = match[1];
-        const strRegex = /\(([^()]*)\)/g;
-        let strMatch: RegExpExecArray | null;
-        while ((strMatch = strRegex.exec(inner)) !== null) {
-          if (strMatch[1] && strMatch[1].trim().length > 1) {
-            textChunks.push(strMatch[1]);
-          }
-        }
-      }
+      const latinDecoder = new TextDecoder('latin1');
+      const rawPdf = latinDecoder.decode(bytes);
 
       // Count pages in PDF
       const pageMatches = rawPdf.match(/\/Type\s*\/Page\b/g);
       const pageCount = pageMatches ? Math.max(1, pageMatches.length) : 1;
 
-      const extracted = textChunks.join(' ').replace(/\\([()\\])/g, '$1').replace(/\s+/g, ' ').trim();
-      if (extracted.length > 50) {
-        return { text: extracted, pageCount };
-      }
+      const textChunks: string[] = [];
 
-      // Fallback: extract continuous readable printable ASCII text segments
-      const asciiMatches = rawPdf.match(/[A-Za-z0-9][A-Za-z0-9\s.,;:'"?!@#$%&*()_-]{15,}/g);
-      if (asciiMatches && asciiMatches.length > 0) {
-        const cleanSegments = asciiMatches
-          .filter((s) => !s.includes('/Type') && !s.includes('/Font') && !s.includes('endobj') && !s.includes('stream'))
-          .join('\n\n');
-        if (cleanSegments.length > 50) {
-          return { text: cleanSegments.trim(), pageCount };
+      // 1. Scan for stream objects and decompress FlateDecode streams using browser DecompressionStream
+      const streamRegex = /<<([^>]*)>>\s*stream[\r\n]+/g;
+      let sMatch: RegExpExecArray | null;
+      while ((sMatch = streamRegex.exec(rawPdf)) !== null) {
+        const dict = sMatch[1];
+        const streamStart = sMatch.index + sMatch[0].length;
+        const endstreamIdx = rawPdf.indexOf('endstream', streamStart);
+        if (endstreamIdx === -1) break;
+
+        let streamEnd = endstreamIdx;
+        while (streamEnd > streamStart && (bytes[streamEnd - 1] === 10 || bytes[streamEnd - 1] === 13)) {
+          streamEnd--;
+        }
+
+        const slice = bytes.subarray(streamStart, streamEnd);
+        let decompressedStr = '';
+
+        if (dict.includes('/FlateDecode') && typeof DecompressionStream !== 'undefined') {
+          try {
+            const ds = new DecompressionStream('deflate');
+            const writer = ds.writable.getWriter();
+            writer.write(slice);
+            writer.close();
+            const reader = ds.readable.getReader();
+            const chunksList: Uint8Array[] = [];
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value) chunksList.push(value);
+            }
+            const totalLen = chunksList.reduce((acc, c) => acc + c.length, 0);
+            const merged = new Uint8Array(totalLen);
+            let offset = 0;
+            for (const c of chunksList) {
+              merged.set(c, offset);
+              offset += c.length;
+            }
+            decompressedStr = new TextDecoder('utf-8').decode(merged);
+          } catch {
+            // Try raw deflate
+            try {
+              const dsRaw = new DecompressionStream('deflate-raw');
+              const writer = dsRaw.writable.getWriter();
+              writer.write(slice);
+              writer.close();
+              const reader = dsRaw.readable.getReader();
+              const chunksList: Uint8Array[] = [];
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (value) chunksList.push(value);
+              }
+              const totalLen = chunksList.reduce((acc, c) => acc + c.length, 0);
+              const merged = new Uint8Array(totalLen);
+              let offset = 0;
+              for (const c of chunksList) {
+                merged.set(c, offset);
+                offset += c.length;
+              }
+              decompressedStr = new TextDecoder('utf-8').decode(merged);
+            } catch {
+              // ignore uncompressed stream
+            }
+          }
+        } else {
+          decompressedStr = latinDecoder.decode(slice);
+        }
+
+        if (decompressedStr) {
+          // Extract literal text inside Tj operators
+          const tjRegex = /\(([^()]*)\)\s*Tj/g;
+          let tjM: RegExpExecArray | null;
+          while ((tjM = tjRegex.exec(decompressedStr)) !== null) {
+            const t = tjM[1].replace(/\\([()\\])/g, '$1').trim();
+            if (t.length > 1 && !isGibberishText(t)) {
+              textChunks.push(t);
+            }
+          }
+
+          // Extract text array TJ operators
+          const tjArrRegex = /\[([^\]]*)\]\s*TJ/g;
+          let tjArrM: RegExpExecArray | null;
+          while ((tjArrM = tjArrRegex.exec(decompressedStr)) !== null) {
+            const inner = tjArrM[1];
+            const sRegex = /\(([^()]*)\)/g;
+            let sM: RegExpExecArray | null;
+            while ((sM = sRegex.exec(inner)) !== null) {
+              const t = sM[1].replace(/\\([()\\])/g, '$1').trim();
+              if (t.length > 1 && !isGibberishText(t)) {
+                textChunks.push(t);
+              }
+            }
+          }
         }
       }
 
+      // 2. Direct uncompressed Tj / TJ fallback
+      if (textChunks.length === 0) {
+        const tjRegex = /\(([^()]*)\)\s*Tj/gi;
+        let match: RegExpExecArray | null;
+        while ((match = tjRegex.exec(rawPdf)) !== null) {
+          const t = match[1].replace(/\\([()\\])/g, '$1').trim();
+          if (t.length > 1 && !isGibberishText(t)) {
+            textChunks.push(t);
+          }
+        }
+
+        const tjArrayRegex = /\[\s*((?:\([^()]*\)\s*|-?\d+\s*)+)\]\s*TJ/gi;
+        while ((match = tjArrayRegex.exec(rawPdf)) !== null) {
+          const inner = match[1];
+          const strRegex = /\(([^()]*)\)/g;
+          let strMatch: RegExpExecArray | null;
+          while ((strMatch = strRegex.exec(inner)) !== null) {
+            const t = strMatch[1].replace(/\\([()\\])/g, '$1').trim();
+            if (t.length > 1 && !isGibberishText(t)) {
+              textChunks.push(t);
+            }
+          }
+        }
+      }
+
+      const extracted = textChunks.join(' ').replace(/\s+/g, ' ').trim();
+      if (extracted.length > 40 && !isGibberishText(extracted)) {
+        return { text: extracted, pageCount };
+      }
+
       return {
-        text: `Content extracted from ${file.name}. This document has been indexed and is available for grounded semantic question answering.`,
+        text: `Content from ${file.name}. This document has been indexed and is available in your workspace.`,
         pageCount,
       };
     } catch {
       return {
-        text: `Content extracted from ${file.name}. This document has been indexed in your browser workspace.`,
+        text: `Content from ${file.name}. Indexed into local vector store.`,
         pageCount: 1,
       };
     }
@@ -262,7 +396,19 @@ export function getClientStoredDocuments(): PDFDocument[] {
     const raw = localStorage.getItem(LOCAL_STORAGE_CLIENT_DOCS);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    // Filter out corrupted documents that only have gibberish or empty content
+    const validDocs = parsed.filter((d: PDFDocument) => {
+      const chunks = getClientStoredChunks(d.id);
+      if (chunks.length === 0) return true;
+      return chunks.some((c) => !isGibberishText(c.text));
+    });
+
+    if (validDocs.length !== parsed.length) {
+      saveClientStoredDocuments(validDocs);
+    }
+    return validDocs;
   } catch {
     return [];
   }
@@ -282,10 +428,19 @@ export function getClientStoredChunks(docId?: string): DocumentChunk[] {
     if (!raw) return [];
     const parsed: DocumentChunk[] = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    if (docId) {
-      return parsed.filter((c) => c.docId === docId);
+
+    // Automatically purge any corrupted or gibberish chunks from client storage
+    const validChunks = parsed.filter((c) => !isGibberishText(c.text));
+    if (validChunks.length !== parsed.length) {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_CLIENT_CHUNKS, JSON.stringify(validChunks));
+      } catch {}
     }
-    return parsed;
+
+    if (docId) {
+      return validChunks.filter((c) => c.docId === docId);
+    }
+    return validChunks;
   } catch {
     return [];
   }
@@ -408,6 +563,9 @@ export function clientQueryRAG(
   const startTime = Date.now();
   let allChunks = getClientStoredChunks();
 
+  // Strict purge of any gibberish or unreadable text
+  allChunks = allChunks.filter((c) => !isGibberishText(c.text));
+
   if (selectedDocIds.length > 0) {
     const idSet = new Set(selectedDocIds);
     allChunks = allChunks.filter((c) => idSet.has(c.docId));
@@ -415,7 +573,7 @@ export function clientQueryRAG(
 
   if (allChunks.length === 0) {
     return {
-      answer: 'No relevant document passages were found in the selected workspace documents. Please upload or select a document to ask questions.',
+      answer: 'No readable document passages were found in your active documents. If you recently uploaded a scanned document or image without a text layer, please upload a text-based document or re-index.',
       citations: [],
       retrievedChunks: [],
       reasoningTimeMs: Date.now() - startTime,
@@ -459,13 +617,20 @@ export function clientQueryRAG(
     similarity: Number(item.similarity.toFixed(3)),
   }));
 
-  // Synthesize answer based on verified retrieved chunks
-  const summaryPoints = relevant.map((r, i) => {
-    const firstSentence = r.chunk.text.split(/[.?!]\s+/)[0] || r.chunk.text.slice(0, 120);
-    return `- **Key Insight ${i + 1}**: ${firstSentence.trim()} [[${i + 1}]]`;
+  // Clean, structured synthesis without raw bracket numbers or gibberish
+  const cleanTitle = query.trim().replace(/[?.:!]+$/, '').trim();
+  const titleHeading = cleanTitle.length > 0
+    ? cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1)
+    : 'Document Findings';
+
+  const insightPoints = relevant.map((r) => {
+    let sentence = r.chunk.text.split(/[.?!]\s+/)[0] || r.chunk.text.slice(0, 160);
+    sentence = sentence.replace(/^[•\s\-_*]+/, '').trim();
+    if (!sentence.endsWith('.')) sentence += '.';
+    return `• **${sentence}**\n  *Source: ${r.chunk.docName} — Page ${r.chunk.pageNumber}*`;
   });
 
-  const answer = `Based on your indexed documents (**${relevant[0].chunk.docName}**):\n\n${summaryPoints.join('\n')}\n\n*All insights grounded in verified document passages with page citations.*`;
+  const answer = `### 🎯 ${titleHeading}\n\n${insightPoints.join('\n\n')}\n\n*Verified across ${relevant.length} passage(s) with grounded citations.*`;
 
   return {
     answer,

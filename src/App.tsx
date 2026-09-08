@@ -508,7 +508,11 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          settings: ragSettings,
+          selectedDocIds,
+          settings: {
+            ...ragSettings,
+            selectedDocIds,
+          },
           chatHistory: messages.map(m => ({ role: m.sender, text: m.content })),
         }),
       }).catch(() => null);

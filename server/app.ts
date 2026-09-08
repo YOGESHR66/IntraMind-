@@ -276,7 +276,7 @@ export function createExpressApp() {
   app.post(["/api/query", "/query"], async (req, res) => {
     const startTime = Date.now();
     try {
-      const { query, settings, chatHistory } = req.body;
+      const { query, settings, chatHistory, selectedDocIds } = req.body;
       if (!query || typeof query !== "string") {
         return res.status(400).json({ error: "Query string is required" });
       }
@@ -285,10 +285,13 @@ export function createExpressApp() {
         topK: 4,
         similarityThreshold: 0.15,
         temperature: 0.2,
-        selectedDocIds: [],
+        selectedDocIds: selectedDocIds || [],
         preciseOutput: false,
         ...settings,
       };
+      if (Array.isArray(selectedDocIds) && selectedDocIds.length > 0) {
+        defaultSettings.selectedDocIds = selectedDocIds;
+      }
 
       const ragResult = await queryRAGPipeline(query, defaultSettings, chatHistory);
       const reasoningTimeMs = Date.now() - startTime;

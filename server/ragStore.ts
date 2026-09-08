@@ -3,6 +3,7 @@ import * as pdfParseModule from "pdf-parse";
 import mammoth from "mammoth";
 import fs from "fs";
 import path from "path";
+import zlib from "zlib";
 import { DocumentChunk, PDFDocument, SearchResult, Citation, RAGSettings } from "../src/types";
 
 let aiClient: GoogleGenAI | null = null;
@@ -101,6 +102,50 @@ async function callGeminiWithFallback(
   throw lastError || new Error("All Gemini model attempts were exhausted.");
 }
 
+// Detect whether text is corrupted binary noise, high-entropy symbols, or random unreadable tokens
+export function isGibberishText(text: string): boolean {
+  if (!text || typeof text !== 'string') return true;
+  const clean = text.trim();
+  if (clean.length < 8) return false;
+
+  // Raw PDF internal objects / markers
+  if (
+    clean.includes('/FlateDecode') ||
+    clean.includes('/FontDescriptor') ||
+    clean.includes('/MediaBox') ||
+    clean.includes('endobj') ||
+    clean.includes('xref') ||
+    clean.includes('trailer<<')
+  ) {
+    return true;
+  }
+
+  // Check proportion of readable alphanumeric + spaces
+  const alphaNumericMatches = clean.match(/[a-zA-Z0-9\s]/g) || [];
+  const ratio = alphaNumericMatches.length / clean.length;
+  if (ratio < 0.65) return true;
+
+  // Check for clusters of 4+ symbols like ?#.*%;
+  if (/[!@#$%^&*()_+=~`[\]{}|\\:;"'<>,/?]{4,}/.test(clean)) return true;
+
+  // Check for random compressed byte strings
+  const words = clean.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length >= 3) {
+    let unreadableWords = 0;
+    for (const w of words) {
+      if (
+        /[A-Za-z]+[0-9%#$@*&_]+[A-Za-z]+/.test(w) ||
+        /[^a-zA-Z0-9\s.,;:'"?!()-]/.test(w)
+      ) {
+        unreadableWords++;
+      }
+    }
+    if (unreadableWords / words.length > 0.35) return true;
+  }
+
+  return false;
+}
+
 // Check if text is raw PDF source code/streams or structural tags rather than human readable text
 function isRawPdfSyntax(text: string): boolean {
   if (!text) return true;
@@ -120,39 +165,93 @@ function isRawPdfSyntax(text: string): boolean {
   if (objMatches && objMatches.length >= 1) {
     return true;
   }
-  return false;
+  return isGibberishText(text);
 }
 
-// Helper to extract readable text from PDF binary streams without external delays
+// Helper to extract readable text from PDF binary streams with Flate decompression
 function extractPdfTextFromBuffer(fileBuffer: Buffer): string {
   try {
     const raw = fileBuffer.toString('latin1');
     const textBlocks: string[] = [];
 
-    // Extract text inside Tj operators: (text) Tj
-    const tjRegex = /\(([^()]*)\)\s*Tj/gi;
-    let match: RegExpExecArray | null;
-    while ((match = tjRegex.exec(raw)) !== null) {
-      if (match[1] && match[1].trim()) {
-        textBlocks.push(match[1]);
+    // 1. Scan for stream objects and decompress FlateDecode streams
+    const streamRegex = /<<([^>]*)>>\s*stream[\r\n]+/g;
+    let sMatch: RegExpExecArray | null;
+    while ((sMatch = streamRegex.exec(raw)) !== null) {
+      const dict = sMatch[1];
+      const streamStart = sMatch.index + sMatch[0].length;
+      const endstreamIdx = raw.indexOf('endstream', streamStart);
+      if (endstreamIdx === -1) break;
+
+      let streamEnd = endstreamIdx;
+      while (streamEnd > streamStart && (fileBuffer[streamEnd - 1] === 10 || fileBuffer[streamEnd - 1] === 13)) {
+        streamEnd--;
+      }
+
+      const slice = fileBuffer.subarray(streamStart, streamEnd);
+      let decompressedStr = '';
+
+      if (dict.includes('/FlateDecode')) {
+        try {
+          decompressedStr = zlib.inflateSync(slice).toString('utf-8');
+        } catch {
+          try {
+            decompressedStr = zlib.inflateRawSync(slice).toString('utf-8');
+          } catch {
+            // ignore non-zlib streams
+          }
+        }
+      } else {
+        decompressedStr = slice.toString('latin1');
+      }
+
+      if (decompressedStr && !isRawPdfSyntax(decompressedStr)) {
+        const tjRegex = /\(([^()]*)\)\s*Tj/g;
+        let tjM: RegExpExecArray | null;
+        while ((tjM = tjRegex.exec(decompressedStr)) !== null) {
+          const t = tjM[1].trim();
+          if (t && !isGibberishText(t)) textBlocks.push(t);
+        }
+
+        const tjArrRegex = /\[([^\]]*)\]\s*TJ/g;
+        let tjArrM: RegExpExecArray | null;
+        while ((tjArrM = tjArrRegex.exec(decompressedStr)) !== null) {
+          const inner = tjArrM[1];
+          const sRegex = /\(([^()]*)\)/g;
+          let sM: RegExpExecArray | null;
+          while ((sM = sRegex.exec(inner)) !== null) {
+            const t = sM[1].trim();
+            if (t && !isGibberishText(t)) textBlocks.push(t);
+          }
+        }
       }
     }
 
-    // Extract text inside TJ array operators: [(text) -10 (text2)] TJ
-    const tjArrayRegex = /\[\s*((?:\([^()]*\)\s*|-?\d+\s*)+)\]\s*TJ/gi;
-    while ((match = tjArrayRegex.exec(raw)) !== null) {
-      const inner = match[1];
-      const strRegex = /\(([^()]*)\)/g;
-      let strMatch: RegExpExecArray | null;
-      while ((strMatch = strRegex.exec(inner)) !== null) {
-        if (strMatch[1] && strMatch[1].trim()) {
-          textBlocks.push(strMatch[1]);
+    // 2. Direct uncompressed Tj / TJ fallback
+    if (textBlocks.length === 0) {
+      const tjRegex = /\(([^()]*)\)\s*Tj/gi;
+      let match: RegExpExecArray | null;
+      while ((match = tjRegex.exec(raw)) !== null) {
+        if (match[1] && match[1].trim() && !isGibberishText(match[1])) {
+          textBlocks.push(match[1]);
+        }
+      }
+
+      const tjArrayRegex = /\[\s*((?:\([^()]*\)\s*|-?\d+\s*)+)\]\s*TJ/gi;
+      while ((match = tjArrayRegex.exec(raw)) !== null) {
+        const inner = match[1];
+        const strRegex = /\(([^()]*)\)/g;
+        let strMatch: RegExpExecArray | null;
+        while ((strMatch = strRegex.exec(inner)) !== null) {
+          if (strMatch[1] && strMatch[1].trim() && !isGibberishText(strMatch[1])) {
+            textBlocks.push(strMatch[1]);
+          }
         }
       }
     }
 
     const extracted = textBlocks.join(" ").replace(/\s+/g, " ").trim();
-    if (extracted.length > 30 && !isRawPdfSyntax(extracted)) {
+    if (extracted.length > 30 && !isRawPdfSyntax(extracted) && !isGibberishText(extracted)) {
       return extracted;
     }
     return "";
@@ -285,20 +384,22 @@ async function safeParsePdf(fileBuffer: Buffer): Promise<{ numpages: number; tex
         return null;
       });
 
-      // Strict 1500ms timeout for pdf-parse to prevent any upload stalls
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      // Timeout for pdf-parse (15s allows full extraction of 10+ page enterprise reports)
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000));
       const result = await Promise.race([parsePromise, timeoutPromise]);
       if (result && (result.text || (result.pages && result.pages.length > 0))) {
-        return result;
+        if (!isGibberishText(result.text)) {
+          return result;
+        }
       }
     }
   } catch (err) {
     console.warn("safeParsePdf primary attempt error:", err);
   }
 
-  // Fallback 1: Fast stream text extraction (< 5ms execution)
+  // Fallback 1: Fast decompressed stream text extraction
   const streamText = extractPdfTextFromBuffer(fileBuffer);
-  if (streamText.length > 20 && !isRawPdfSyntax(streamText)) {
+  if (streamText.length > 20 && !isRawPdfSyntax(streamText) && !isGibberishText(streamText)) {
     return { numpages: 1, text: streamText };
   }
 
@@ -726,9 +827,12 @@ export async function performSemanticSearch(
     ? chunksStore.filter(c => filterDocIds.includes(c.docId))
     : chunksStore;
 
+  // Purge any corrupted or unreadable binary chunks
+  eligibleChunks = eligibleChunks.filter(c => !isGibberishText(c.text) && !isRawPdfSyntax(c.text));
+
   // Fallback: If filtered list is empty but chunks exist in store, search all chunks
   if (eligibleChunks.length === 0 && chunksStore.length > 0) {
-    eligibleChunks = chunksStore;
+    eligibleChunks = chunksStore.filter(c => !isGibberishText(c.text) && !isRawPdfSyntax(c.text));
   }
 
   if (eligibleChunks.length === 0) {
