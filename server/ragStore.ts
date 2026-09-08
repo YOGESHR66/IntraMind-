@@ -306,7 +306,9 @@ async function safeParsePdf(fileBuffer: Buffer): Promise<{ numpages: number; tex
 }
 
 // Global In-Memory & File-Persisted RAG Store
-const CACHE_DIR = path.join(process.cwd(), ".rag_cache");
+const CACHE_DIR = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  ? path.join("/tmp", ".rag_cache")
+  : path.join(process.cwd(), ".rag_cache");
 const CACHE_FILE = path.join(CACHE_DIR, "store.json");
 
 const documentsStore: PDFDocument[] = [];

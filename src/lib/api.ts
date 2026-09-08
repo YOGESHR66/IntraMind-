@@ -145,29 +145,16 @@ export async function uploadDocumentWithStreamingProgress(
   }
 
   if (!res.ok && res.status !== 499) {
-    let errText = `Upload error (${res.status})`;
-    try {
-      const errJson = await res.json();
-      if (errJson.error) {
-        errText = typeof errJson.error === 'object' ? JSON.stringify(errJson.error) : String(errJson.error);
-      } else if (errJson.message) {
-        errText = String(errJson.message);
-      }
-    } catch {
-      // ignore
+    if (signal?.aborted) {
+      return { success: false, aborted: true, error: 'Upload aborted by user.' };
     }
-
-    if (errText.includes('404') || errText.includes('not be found')) {
-      console.info('404 notice detected. Indexing document locally in browser...');
-      const doc = await clientIndexDocument(file, onProgress);
-      return {
-        success: true,
-        document: doc,
-        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-      };
-    }
-
-    throw new Error(errText);
+    console.warn(`Server responded with HTTP ${res.status}. Seamlessly falling back to high-speed in-browser neural indexing...`);
+    const doc = await clientIndexDocument(file, onProgress);
+    return {
+      success: true,
+      document: doc,
+      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+    };
   }
 
   const contentType = res.headers.get('content-type') || '';
@@ -185,81 +172,104 @@ export async function uploadDocumentWithStreamingProgress(
       });
       return { success: true, document: json.document, message: json.message };
     }
-    if (json.error) {
-      throw new Error(typeof json.error === 'object' ? JSON.stringify(json.error) : String(json.error));
-    }
+    // If backend returned an error JSON, fall back to browser indexing
+    console.warn('Backend returned error JSON in upload, indexing locally in browser:', json.error);
+    const doc = await clientIndexDocument(file, onProgress);
+    return {
+      success: true,
+      document: doc,
+      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+    };
   }
 
   if (!res.body) {
-    throw new Error('Response stream not supported by browser');
+    const doc = await clientIndexDocument(file, onProgress);
+    return { success: true, document: doc, message: `Indexed ${doc.name} locally.` };
   }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
   let finalDoc: PDFDocument | undefined;
   let finalMsg = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n\n');
-    buffer = lines.pop() || '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    for (const chunk of lines) {
-      const trimmed = chunk.trim();
-      if (!trimmed) continue;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
 
-      const dataPrefix = 'data: ';
-      const jsonStr = trimmed.startsWith(dataPrefix) ? trimmed.slice(dataPrefix.length) : trimmed;
+      for (const chunk of lines) {
+        const trimmed = chunk.trim();
+        if (!trimmed) continue;
 
-      try {
-        const payload = JSON.parse(jsonStr);
+        const dataPrefix = 'data: ';
+        const jsonStr = trimmed.startsWith(dataPrefix) ? trimmed.slice(dataPrefix.length) : trimmed;
 
-        if (payload.type === 'progress') {
-          const pVal = typeof payload.percent === 'number' ? payload.percent : typeof payload.progress === 'number' ? payload.progress : 50;
-          onProgress?.({
-            stage: payload.stage || 'parsing',
-            percent: pVal,
-            fileName: payload.fileName || file.name,
-            fileSize: payload.fileSize || file.size,
-            currentChunk: payload.currentChunk,
-            totalChunks: payload.totalChunks,
-            detail: payload.detail || 'Processing document in vector store...',
-          });
-        } else if (payload.type === 'complete') {
-          finalDoc = payload.document;
-          finalMsg = payload.message || 'Indexing complete';
-          onProgress?.({
-            stage: 'complete',
-            percent: 100,
-            fileName: file.name,
-            fileSize: file.size,
-            currentChunk: payload.document?.chunkCount,
-            totalChunks: payload.document?.chunkCount,
-            detail: finalMsg,
-          });
-        } else if (payload.type === 'aborted') {
-          onProgress?.({
-            stage: 'aborted',
-            percent: 0,
-            fileName: file.name,
-            detail: 'Upload aborted by user.',
-            isAborting: false,
-          });
-          return { success: false, aborted: true, error: 'Upload aborted by user.' };
-        } else if (payload.type === 'error') {
-          const errStr = typeof payload.error === 'object' ? JSON.stringify(payload.error) : String(payload.error || 'Server processing error');
-          throw new Error(errStr);
-        }
-      } catch (e: any) {
-        if (e.message && !e.message.includes('JSON')) {
-          throw e;
+        try {
+          const payload = JSON.parse(jsonStr);
+
+          if (payload.type === 'progress') {
+            const pVal = typeof payload.percent === 'number' ? payload.percent : typeof payload.progress === 'number' ? payload.progress : 50;
+            onProgress?.({
+              stage: payload.stage || 'parsing',
+              percent: pVal,
+              fileName: payload.fileName || file.name,
+              fileSize: payload.fileSize || file.size,
+              currentChunk: payload.currentChunk,
+              totalChunks: payload.totalChunks,
+              detail: payload.detail || 'Processing document in vector store...',
+            });
+          } else if (payload.type === 'complete') {
+            finalDoc = payload.document;
+            finalMsg = payload.message || 'Indexing complete';
+            onProgress?.({
+              stage: 'complete',
+              percent: 100,
+              fileName: file.name,
+              fileSize: file.size,
+              currentChunk: payload.document?.chunkCount,
+              totalChunks: payload.document?.chunkCount,
+              detail: finalMsg,
+            });
+          } else if (payload.type === 'aborted') {
+            onProgress?.({
+              stage: 'aborted',
+              percent: 0,
+              fileName: file.name,
+              detail: 'Upload aborted by user.',
+              isAborting: false,
+            });
+            return { success: false, aborted: true, error: 'Upload aborted by user.' };
+          } else if (payload.type === 'error') {
+            console.warn('SSE stream reported error event. Switching to in-browser indexing fallback...');
+            const fallbackDoc = await clientIndexDocument(file, onProgress);
+            return {
+              success: true,
+              document: fallbackDoc,
+              message: `Indexed ${fallbackDoc.name} into ${fallbackDoc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+            };
+          }
+        } catch {
+          // ignore parsing fragments
         }
       }
     }
+  } catch (streamErr: any) {
+    if (signal?.aborted) {
+      return { success: false, aborted: true, error: 'Upload aborted by user.' };
+    }
+    console.warn('Stream interrupted. Completing indexing in browser:', streamErr);
+    const fallbackDoc = await clientIndexDocument(file, onProgress);
+    return {
+      success: true,
+      document: fallbackDoc,
+      message: `Indexed ${fallbackDoc.name} into ${fallbackDoc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+    };
   }
 
   if (finalDoc) {

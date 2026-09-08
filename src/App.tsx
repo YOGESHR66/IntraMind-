@@ -15,6 +15,7 @@ import {
   deleteClientDocument,
   clearClientDocuments,
   clientQueryRAG,
+  clientIndexDocument,
 } from './lib/clientRAG';
 import { ChatHistoryModal } from './components/ChatHistoryModal';
 import {
@@ -364,12 +365,39 @@ export default function App() {
         return;
       }
 
+      // Attempt local client-side neural indexing fallback before showing any error
+      try {
+        console.warn('Network upload attempt failed. Falling back to in-browser indexing:', err);
+        const fallbackDoc = await clientIndexDocument(file, (p) => setUploadProgress(p));
+        setDocuments((prev) => [fallbackDoc, ...prev.filter((d) => d.id !== fallbackDoc.id)]);
+        setActiveDoc(fallbackDoc);
+        setSelectedDocIds((prev) => Array.from(new Set([fallbackDoc.id, ...prev])));
+        setLastUploadedDocId(fallbackDoc.id);
+        setUploadSuccessNotice({
+          docName: fallbackDoc.name,
+          chunkCount: fallbackDoc.chunkCount,
+          fileSize: fallbackDoc.fileSize,
+          fileType: fallbackDoc.fileType || 'file',
+        });
+        setActiveTab('chat');
+        setIsUploading(false);
+        setUploadingFileName(null);
+        uploadAbortControllerRef.current = null;
+        setTimeout(() => {
+          setUploadProgress(null);
+        }, 500);
+        return;
+      } catch (fallbackErr) {
+        console.error('In-browser fallback indexing also failed:', fallbackErr);
+      }
+
       setLastFailedFile(file);
       const rawMsg = formatErrorMessage(err);
       let cleanErr = rawMsg
         .replace(/<[^>]*>?/gm, '')
         .replace(/:\s*root\s*\{[^}]*\}/gi, '')
         .replace(/body\s*\{[^}]*\}/gi, '')
+        .replace(/\{"code":"500","message":"A server error has occurred"\}/g, 'Server unavailable. Please retry with local indexing.')
         .trim();
 
       if (cleanErr.includes('Failed to fetch') || cleanErr.includes('fetch')) {

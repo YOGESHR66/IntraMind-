@@ -138,13 +138,28 @@ export function createExpressApp() {
         const mimeType = req.file.mimetype;
 
         if (isStream) {
-          res.setHeader("Content-Type", "text/event-stream");
-          res.setHeader("Cache-Control", "no-cache");
-          res.setHeader("Connection", "keep-alive");
-          res.flushHeaders?.();
+          try {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache, no-transform");
+            res.setHeader("Connection", "keep-alive");
+            res.setHeader("X-Accel-Buffering", "no");
+            res.flushHeaders?.();
+          } catch (hErr) {
+            console.warn("SSE header setup warning:", hErr);
+          }
+
+          const safeWrite = (str: string) => {
+            try {
+              if (!isClientClosed && !res.writableEnded) {
+                res.write(str);
+              }
+            } catch {
+              // ignore broken pipe on serverless edge
+            }
+          };
 
           // Initial upload acknowledgement event
-          res.write(
+          safeWrite(
             `data: ${JSON.stringify({
               type: "progress",
               stage: "uploading",
@@ -160,22 +175,20 @@ export function createExpressApp() {
             fileName,
             mimeType,
             (progress) => {
-              if (!isClientClosed && !res.writableEnded) {
-                res.write(
-                  `data: ${JSON.stringify({
-                    type: "progress",
-                    fileName,
-                    fileSize: req.file?.size,
-                    ...progress,
-                  })}\n\n`
-                );
-              }
+              safeWrite(
+                `data: ${JSON.stringify({
+                  type: "progress",
+                  fileName,
+                  fileSize: req.file?.size,
+                  ...progress,
+                })}\n\n`
+              );
             },
             abortController.signal
           );
 
           if (!res.writableEnded) {
-            res.write(
+            safeWrite(
               `data: ${JSON.stringify({
                 type: "complete",
                 success: true,
@@ -184,7 +197,11 @@ export function createExpressApp() {
                 message: `Successfully processed ${doc.name} into ${doc.chunkCount} vector chunks.`,
               })}\n\n`
             );
-            res.end();
+            try {
+              res.end();
+            } catch {
+              // ignore
+            }
           }
         } else {
           const doc = await processAndIndexFile(
