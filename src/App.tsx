@@ -757,7 +757,7 @@ export default function App() {
           />
 
           {/* Deployment Status Banners for Render / Cloud Hosting */}
-          {backendStatus.checked && !backendStatus.hasApiKey && (
+          {backendStatus.checked && backendStatus.online && !backendStatus.hasApiKey && (
             <div className="bg-amber-950/80 border-b border-amber-500/40 text-amber-200 px-4 py-2.5 text-xs flex items-center justify-between gap-3 backdrop-blur-md shrink-0 z-20">
               <div className="flex items-center gap-2">
                 <span className="flex h-2 w-2 relative shrink-0">
@@ -765,7 +765,7 @@ export default function App() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                 </span>
                 <span>
-                  <strong>Configuration Required:</strong> <code>GEMINI_API_KEY</code> is not configured in your deployment environment variables. Add <code>GEMINI_API_KEY</code> in Render Dashboard &rarr; Environment to enable AI answer generation.
+                  <strong>Configuration Required:</strong> <code>GEMINI_API_KEY</code> is not configured in your deployment environment variables. Add <code>GEMINI_API_KEY</code> in Vercel (Project Settings &rarr; Environment Variables) or Render (Environment) to enable AI answer generation.
                 </span>
               </div>
               <button
@@ -781,7 +781,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-red-500 shrink-0"></span>
                 <span>
-                  <strong>Backend Unreachable:</strong> Could not connect to the RAG backend server. If deployed on Render, ensure you deployed as a <em>Web Service</em> (Node.js) and check Render deployment logs.
+                  <strong>Backend Unreachable:</strong> Could not connect to the RAG backend server at <code>/api/health</code>. Ensure you commit <code>vercel.json</code> and the <code>/api</code> directory, and check deployment logs.
                 </span>
               </div>
               <button
