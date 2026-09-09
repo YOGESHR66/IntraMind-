@@ -60,7 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
               Generation Model
             </span>
-            <span className="font-mono text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded text-[10px]">gemini-2.5-flash</span>
+            <span className="font-mono text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded text-[10px]">gemini-3.1-flash-lite</span>
           </div>
           <div className="flex items-center justify-between text-xs pt-2 border-t border-neutral-800">
             <span className="font-semibold text-neutral-300 flex items-center gap-1">

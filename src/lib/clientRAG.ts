@@ -651,7 +651,8 @@ export function clientQueryRAG(
   query: string,
   selectedDocIds: string[] = [],
   topK: number = 4,
-  similarityThreshold: number = 0.08
+  similarityThreshold: number = 0.08,
+  providedChunks?: DocumentChunk[]
 ): {
   answer: string;
   citations: Citation[];
@@ -659,7 +660,13 @@ export function clientQueryRAG(
   reasoningTimeMs: number;
 } {
   const startTime = Date.now();
-  let allChunks = getClientStoredChunks();
+  let allChunks = providedChunks && providedChunks.length > 0
+    ? [...providedChunks]
+    : getClientStoredChunks();
+
+  if (allChunks.length === 0) {
+    allChunks = getClientStoredChunks();
+  }
 
   // Strict purge of any gibberish or unreadable text
   allChunks = allChunks.filter((c) => !isGibberishText(c.text));

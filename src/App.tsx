@@ -12,6 +12,7 @@ import { fetchApi, uploadDocumentWithStreamingProgress } from './lib/api';
 import {
   getClientStoredDocuments,
   getClientStoredChunks,
+  saveClientStoredChunks,
   deleteClientDocument,
   clearClientDocuments,
   clientQueryRAG,
@@ -191,6 +192,9 @@ export default function App() {
       if (allChunksRes && allChunksRes.ok) {
         const allData = await allChunksRes.json();
         loadedAllChunks = allData.chunks || [];
+        if (loadedAllChunks.length > 0) {
+          saveClientStoredChunks(loadedAllChunks);
+        }
       }
 
       const clientChunks = getClientStoredChunks();
@@ -557,8 +561,8 @@ export default function App() {
         reasoningTimeMs = data.reasoningTimeMs || 0;
         isSuccess = true;
       } else {
-        // Fallback to client-side vector search only if genuine local chunks exist
-        const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold);
+        // Fallback to client-side vector search across active chunks
+        const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, allChunks);
         const hasGenuineChunks = clientRes.retrievedChunks.some(c => !isGibberishText(c.chunk.text) && c.chunk.text.trim().length > 30);
         if (hasGenuineChunks && (clientRes.citations.length > 0 || clientRes.retrievedChunks.length > 0)) {
           finalAnswer = clientRes.answer;
@@ -570,7 +574,11 @@ export default function App() {
           throw new Error('Unable to connect to the backend RAG server. If deployed on Render, verify your Web Service is running and check server logs.');
         } else {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `RAG Query failed (HTTP ${res.status}).`);
+          const rawErr = data?.error;
+          const msg = typeof rawErr === 'string'
+            ? rawErr
+            : (rawErr?.message || (typeof data?.message === 'string' ? data.message : `RAG Query failed (HTTP ${res.status}).`));
+          throw new Error(msg);
         }
       }
 
@@ -594,11 +602,11 @@ export default function App() {
         );
         setSessions(updatedAfterBot);
       }
-    } catch (err) {
-      // If genuine local chunks exist, answer from them
-      const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold);
+    } catch (err: any) {
+      // If genuine local or active chunks exist, answer from them
+      const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, allChunks);
       const hasRealChunks = clientRes.retrievedChunks.some(c => !isGibberishText(c.chunk.text) && c.chunk.text.trim().length > 30);
-      if (hasRealChunks && clientRes.retrievedChunks.length > 0) {
+      if (hasRealChunks && (clientRes.citations.length > 0 || clientRes.retrievedChunks.length > 0)) {
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
           sender: 'assistant',
@@ -617,12 +625,14 @@ export default function App() {
         );
         setSessions(updatedAfterBot);
       } else {
+        const rawErr = err instanceof Error ? err.message : (typeof err === 'string' ? err : '');
+        const displayErr = (!rawErr || rawErr === '[object Object]')
+          ? (err?.error?.message || err?.message || 'Unexpected response during vector retrieval. Please try again.')
+          : rawErr;
         const errorMsg: ChatMessage = {
           id: `assistant-err-${Date.now()}`,
           sender: 'assistant',
-          content: `Sorry, an error occurred during vector retrieval: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          content: `Sorry, an error occurred during vector retrieval: ${displayErr}`,
           timestamp: new Date().toISOString(),
         };
         const errorMessages = [...messagesWithUser, errorMsg];
