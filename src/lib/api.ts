@@ -107,14 +107,16 @@ export async function uploadDocumentWithStreamingProgress(
     detail: `Transmitting ${file.name} to IntraMind RAG Engine...`,
   });
 
-  let res: Response;
+  let res: Response | null = null;
+
+  // Attempt 1: Streaming progress upload
   try {
     res = await fetch('/api/upload?stream=true', {
       method: 'POST',
       body: formData,
       signal,
       headers: {
-        'Accept': 'text/event-stream, application/x-ndjson',
+        'Accept': 'text/event-stream, application/x-ndjson, application/json',
         'X-Requested-With': 'XMLHttpRequest',
       },
     });
@@ -122,52 +124,52 @@ export async function uploadDocumentWithStreamingProgress(
     if (signal?.aborted) {
       return { success: false, aborted: true, error: 'Upload aborted by user.' };
     }
-    console.warn('Backend upload request failed:', fetchErr);
+    console.warn('Streaming upload attempt failed, trying standard upload:', fetchErr);
+  }
+
+  // Attempt 2: If streaming failed or returned 404/500, attempt standard non-streaming POST
+  if (!res || !res.ok) {
     try {
-      const doc = await clientIndexDocument(file, onProgress);
-      return {
-        success: true,
-        document: doc,
-        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-      };
-    } catch {
-      return {
-        success: false,
-        error: `Unable to reach RAG server at /api/upload (${fetchErr?.message || 'Network error'}). If deployed on Render, verify your Web Service is running.`,
-      };
+      const standardRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        signal,
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      });
+
+      if (standardRes.ok) {
+        const json = await standardRes.json();
+        if (json.document) {
+          onProgress?.({
+            stage: 'complete',
+            percent: 100,
+            fileName: file.name,
+            fileSize: file.size,
+            currentChunk: json.document.chunkCount,
+            totalChunks: json.document.chunkCount,
+            detail: `Document ${file.name} successfully indexed.`,
+          });
+          return {
+            success: true,
+            document: json.document,
+            message: json.message || `Successfully processed ${file.name} into ${json.document.chunkCount} vector chunks.`,
+          };
+        }
+      }
+    } catch (standardErr) {
+      console.warn('Standard upload attempt also failed:', standardErr);
     }
   }
 
-  // If server returns 404 (e.g. static Vite hosting without backend or cold start)
-  if (res.status === 404) {
-    console.warn('Backend returned 404 for /api/upload.');
-    try {
-      const doc = await clientIndexDocument(file, onProgress);
-      return {
-        success: true,
-        document: doc,
-        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Upload failed: /api/upload not found (404). If deployed on Render, ensure you deployed as a "Web Service" running Node.js, not a "Static Site".',
-      };
-    }
-  }
-
-  if (!res.ok && res.status !== 499) {
+  // Attempt 3: In-Browser Client Vector Engine Fallback
+  if (!res || !res.ok) {
     if (signal?.aborted) {
       return { success: false, aborted: true, error: 'Upload aborted by user.' };
     }
-    const errText = await res.text().catch(() => '');
-    let parsedError = '';
-    try {
-      const json = JSON.parse(errText);
-      parsedError = json.error || json.message;
-    } catch {}
-    const msg = parsedError || `Server returned HTTP ${res.status}: ${errText.slice(0, 100)}`;
-    console.warn(`Server responded with HTTP ${res.status}:`, msg);
+    console.warn('Server upload endpoints unavailable or returned error. Activating client-side vector engine fallback.');
     try {
       const doc = await clientIndexDocument(file, onProgress);
       return {
@@ -175,10 +177,10 @@ export async function uploadDocumentWithStreamingProgress(
         document: doc,
         message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
       };
-    } catch {
+    } catch (clientErr: any) {
       return {
         success: false,
-        error: `Upload processing failed: ${msg}`,
+        error: `Upload processing failed: ${clientErr?.message || 'Unable to index document.'}`,
       };
     }
   }

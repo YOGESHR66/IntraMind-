@@ -346,20 +346,22 @@ export default function App() {
         controller.signal
       );
 
-      if (result.document) {
-        const doc: PDFDocument = result.document;
-        setDocuments((prev) => [doc, ...prev.filter((d) => d.id !== doc.id)]);
-        setActiveDoc(doc);
-        setSelectedDocIds((prev) => Array.from(new Set([doc.id, ...prev])));
-        setLastUploadedDocId(doc.id);
-        setUploadSuccessNotice({
-          docName: doc.name,
-          chunkCount: doc.chunkCount,
-          fileSize: doc.fileSize,
-          fileType: doc.fileType || 'file',
-        });
-        setActiveTab('chat');
+      if (!result.success || !result.document) {
+        throw new Error(result.error || `Failed to process ${file.name}`);
       }
+
+      const doc: PDFDocument = result.document;
+      setDocuments((prev) => [doc, ...prev.filter((d) => d.id !== doc.id)]);
+      setActiveDoc(doc);
+      setSelectedDocIds((prev) => Array.from(new Set([doc.id, ...prev])));
+      setLastUploadedDocId(doc.id);
+      setUploadSuccessNotice({
+        docName: doc.name,
+        chunkCount: doc.chunkCount,
+        fileSize: doc.fileSize,
+        fileType: doc.fileType || 'file',
+      });
+      setActiveTab('chat');
 
       // Background sync
       fetchDocuments().catch(() => {});
