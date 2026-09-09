@@ -1139,18 +1139,24 @@ ${
       }
     }
   } else {
-    // Fallback if no API key provided yet
-    if (isPrecise) {
-      const topChunks = searchResults.slice(0, 3);
-      const bulletPoints = topChunks.map((r) => {
-        const snippet = r.chunk.text.slice(0, 120).trim();
-        return `• ${snippet}...`;
-      }).join("\n\n");
-      answerText = `### 🎯 ${query}\n\n${bulletPoints}`;
-    } else {
-      answerText = `[API Key Warning: GEMINI_API_KEY is not set or ready]. Here are the top matching source chunks:\n\n` +
-        searchResults.map((r) => `**${r.chunk.docName}** (Page ${r.chunk.pageNumber}, **${r.scorePercentage}% match**):\n"${r.chunk.text.slice(0, 250)}..."`).join("\n\n");
-    }
+    // Fallback if no GEMINI_API_KEY provided in deployment environment
+    const topChunks = searchResults.slice(0, 4);
+    const passagesText = topChunks.map((r, i) => {
+      const passageNum = i + 1;
+      return `**Source [${passageNum}]: ${r.chunk.docName} (Page ${r.chunk.pageNumber}, ${r.scorePercentage}% relevance)**\n> ${r.chunk.text.trim()}`;
+    }).join("\n\n");
+
+    answerText = `### ⚠️ Notice: GEMINI_API_KEY Missing on Deployment\n\n` +
+      `Your query **"${query}"** successfully matched **${searchResults.length} relevant passage(s)** in your uploaded document, but the **GEMINI_API_KEY** environment variable has not been set in your production deployment.\n\n` +
+      `Without an API key, the system cannot generate an AI-synthesized answer with Gemini.\n\n` +
+      `**How to fix this in Render:**\n` +
+      `1. Open your Render Dashboard → Select your Web Service\n` +
+      `2. Click the **Environment** tab in the left sidebar\n` +
+      `3. Click **Add Environment Variable**\n` +
+      `4. Set Key to **\`GEMINI_API_KEY\`** and Value to your Gemini API key\n` +
+      `5. Save changes (Render will automatically redeploy with AI synthesis enabled)\n\n` +
+      `---\n\n` +
+      `### 📄 Grounded Document Passages Found:\n\n${passagesText}`;
   }
 
   // Step 4: Extract Citations (captures single [1] and multi-bracket citations like [1, 4] before text sanitization)

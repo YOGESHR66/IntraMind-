@@ -16,6 +16,7 @@ import {
   clearClientDocuments,
   clientQueryRAG,
   clientIndexDocument,
+  isGibberishText,
 } from './lib/clientRAG';
 import { ChatHistoryModal } from './components/ChatHistoryModal';
 import {
@@ -100,6 +101,34 @@ export default function App() {
 
   const handleTogglePreciseOutput = () => {
     handleUpdateRagSettings({ preciseOutput: !ragSettings.preciseOutput });
+  };
+
+  const [backendStatus, setBackendStatus] = useState<{
+    checked: boolean;
+    online: boolean;
+    hasApiKey: boolean;
+  }>({ checked: false, online: false, hasApiKey: false });
+
+  const checkBackendHealth = async () => {
+    try {
+      const res = await fetchApi('/api/health').catch(() => null);
+      if (res && res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBackendStatus({
+          checked: true,
+          online: true,
+          hasApiKey: Boolean(data.hasApiKey),
+        });
+        return;
+      }
+    } catch {
+      // offline
+    }
+    setBackendStatus({
+      checked: true,
+      online: false,
+      hasApiKey: false,
+    });
   };
 
   const fetchDocuments = async () => {
@@ -194,6 +223,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    checkBackendHealth();
     fetchDocuments();
     const loadedSessions = loadAllSessions();
     setSessions(loadedSessions);
@@ -525,19 +555,20 @@ export default function App() {
         reasoningTimeMs = data.reasoningTimeMs || 0;
         isSuccess = true;
       } else {
-        // Fallback to client-side vector search and grounded retrieval
+        // Fallback to client-side vector search only if genuine local chunks exist
         const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold);
-        if (clientRes.citations.length > 0 || clientRes.retrievedChunks.length > 0) {
+        const hasGenuineChunks = clientRes.retrievedChunks.some(c => !isGibberishText(c.chunk.text) && c.chunk.text.trim().length > 30);
+        if (hasGenuineChunks && (clientRes.citations.length > 0 || clientRes.retrievedChunks.length > 0)) {
           finalAnswer = clientRes.answer;
           citations = clientRes.citations;
           retrievedChunks = clientRes.retrievedChunks;
           reasoningTimeMs = clientRes.reasoningTimeMs;
           isSuccess = true;
         } else if (!res) {
-          throw new Error('Unable to connect to RAG server and no local documents were matched.');
+          throw new Error('Unable to connect to the backend RAG server. If deployed on Render, verify your Web Service is running and check server logs.');
         } else {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `RAG Query status ${res.status}`);
+          throw new Error(data.error || `RAG Query failed (HTTP ${res.status}).`);
         }
       }
 
@@ -562,9 +593,10 @@ export default function App() {
         setSessions(updatedAfterBot);
       }
     } catch (err) {
-      // One last check: if we have local chunks, answer from them
+      // If genuine local chunks exist, answer from them
       const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold);
-      if (clientRes.retrievedChunks.length > 0) {
+      const hasRealChunks = clientRes.retrievedChunks.some(c => !isGibberishText(c.chunk.text) && c.chunk.text.trim().length > 30);
+      if (hasRealChunks && clientRes.retrievedChunks.length > 0) {
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
           sender: 'assistant',
@@ -723,6 +755,43 @@ export default function App() {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
+
+          {/* Deployment Status Banners for Render / Cloud Hosting */}
+          {backendStatus.checked && !backendStatus.hasApiKey && (
+            <div className="bg-amber-950/80 border-b border-amber-500/40 text-amber-200 px-4 py-2.5 text-xs flex items-center justify-between gap-3 backdrop-blur-md shrink-0 z-20">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 relative shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <span>
+                  <strong>Configuration Required:</strong> <code>GEMINI_API_KEY</code> is not configured in your deployment environment variables. Add <code>GEMINI_API_KEY</code> in Render Dashboard &rarr; Environment to enable AI answer generation.
+                </span>
+              </div>
+              <button
+                onClick={checkBackendHealth}
+                className="underline hover:text-white shrink-0 font-medium px-2 py-0.5 rounded hover:bg-amber-900/50 cursor-pointer"
+              >
+                Re-check
+              </button>
+            </div>
+          )}
+          {backendStatus.checked && !backendStatus.online && (
+            <div className="bg-red-950/80 border-b border-red-500/40 text-red-200 px-4 py-2.5 text-xs flex items-center justify-between gap-3 backdrop-blur-md shrink-0 z-20">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-red-500 shrink-0"></span>
+                <span>
+                  <strong>Backend Unreachable:</strong> Could not connect to the RAG backend server. If deployed on Render, ensure you deployed as a <em>Web Service</em> (Node.js) and check Render deployment logs.
+                </span>
+              </div>
+              <button
+                onClick={checkBackendHealth}
+                className="underline hover:text-white shrink-0 font-medium px-2 py-0.5 rounded hover:bg-red-900/50 cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
             <div className="flex-1 w-full px-2 sm:px-4 md:px-6 py-2 sm:py-3 flex flex-col min-h-0 overflow-hidden relative">
               <div className={`h-full w-full flex-col min-h-0 ${activeTab === 'chat' ? 'flex' : 'hidden'}`}>

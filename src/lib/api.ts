@@ -122,39 +122,65 @@ export async function uploadDocumentWithStreamingProgress(
     if (signal?.aborted) {
       return { success: false, aborted: true, error: 'Upload aborted by user.' };
     }
-    // If backend connection is unreachable (e.g. offline or static host), index client-side
-    console.info('Backend upload request failed, falling back to client-side indexing:', fetchErr);
-    const doc = await clientIndexDocument(file, onProgress);
-    return {
-      success: true,
-      document: doc,
-      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-    };
+    console.warn('Backend upload request failed:', fetchErr);
+    try {
+      const doc = await clientIndexDocument(file, onProgress);
+      return {
+        success: true,
+        document: doc,
+        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+      };
+    } catch {
+      return {
+        success: false,
+        error: `Unable to reach RAG server at /api/upload (${fetchErr?.message || 'Network error'}). If deployed on Render, verify your Web Service is running.`,
+      };
+    }
   }
 
-  // If server returns 404 (e.g. static Vite hosting on Vercel without backend function or server starting up),
-  // automatically index document in-browser so user never sees a 404 error!
+  // If server returns 404 (e.g. static Vite hosting without backend or cold start)
   if (res.status === 404) {
-    console.info('Backend returned 404 for /api/upload. Indexing document locally in browser...');
-    const doc = await clientIndexDocument(file, onProgress);
-    return {
-      success: true,
-      document: doc,
-      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-    };
+    console.warn('Backend returned 404 for /api/upload.');
+    try {
+      const doc = await clientIndexDocument(file, onProgress);
+      return {
+        success: true,
+        document: doc,
+        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+      };
+    } catch {
+      return {
+        success: false,
+        error: 'Upload failed: /api/upload not found (404). If deployed on Render, ensure you deployed as a "Web Service" running Node.js, not a "Static Site".',
+      };
+    }
   }
 
   if (!res.ok && res.status !== 499) {
     if (signal?.aborted) {
       return { success: false, aborted: true, error: 'Upload aborted by user.' };
     }
-    console.warn(`Server responded with HTTP ${res.status}. Seamlessly falling back to high-speed in-browser neural indexing...`);
-    const doc = await clientIndexDocument(file, onProgress);
-    return {
-      success: true,
-      document: doc,
-      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-    };
+    const errText = await res.text().catch(() => '');
+    let parsedError = '';
+    try {
+      const json = JSON.parse(errText);
+      parsedError = json.error || json.message;
+    } catch {}
+    const msg = parsedError || `Server returned HTTP ${res.status}: ${errText.slice(0, 100)}`;
+    console.warn(`Server responded with HTTP ${res.status}:`, msg);
+    try {
+      const doc = await clientIndexDocument(file, onProgress);
+      return {
+        success: true,
+        document: doc,
+        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+      };
+    } catch {
+      return {
+        success: false,
+        error: `Upload processing failed: ${msg}`,
+      };
+    }
   }
 
   const contentType = res.headers.get('content-type') || '';
@@ -172,14 +198,21 @@ export async function uploadDocumentWithStreamingProgress(
       });
       return { success: true, document: json.document, message: json.message };
     }
-    // If backend returned an error JSON, fall back to browser indexing
-    console.warn('Backend returned error JSON in upload, indexing locally in browser:', json.error);
-    const doc = await clientIndexDocument(file, onProgress);
-    return {
-      success: true,
-      document: doc,
-      message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-    };
+    // If backend returned an error JSON, attempt client fallback or fail with error
+    console.warn('Backend returned error JSON in upload:', json.error);
+    try {
+      const doc = await clientIndexDocument(file, onProgress);
+      return {
+        success: true,
+        document: doc,
+        message: `Indexed ${doc.name} into ${doc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+      };
+    } catch {
+      return {
+        success: false,
+        error: json.error || json.message || 'Failed to process document on server.',
+      };
+    }
   }
 
   if (!res.body) {
@@ -246,13 +279,20 @@ export async function uploadDocumentWithStreamingProgress(
             });
             return { success: false, aborted: true, error: 'Upload aborted by user.' };
           } else if (payload.type === 'error') {
-            console.warn('SSE stream reported error event. Switching to in-browser indexing fallback...');
-            const fallbackDoc = await clientIndexDocument(file, onProgress);
-            return {
-              success: true,
-              document: fallbackDoc,
-              message: `Indexed ${fallbackDoc.name} into ${fallbackDoc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-            };
+            console.warn('SSE stream reported error event:', payload.error);
+            try {
+              const fallbackDoc = await clientIndexDocument(file, onProgress);
+              return {
+                success: true,
+                document: fallbackDoc,
+                message: `Indexed ${fallbackDoc.name} into ${fallbackDoc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+              };
+            } catch {
+              return {
+                success: false,
+                error: payload.error || 'Server error while indexing document.',
+              };
+            }
           }
         } catch {
           // ignore parsing fragments
@@ -263,13 +303,20 @@ export async function uploadDocumentWithStreamingProgress(
     if (signal?.aborted) {
       return { success: false, aborted: true, error: 'Upload aborted by user.' };
     }
-    console.warn('Stream interrupted. Completing indexing in browser:', streamErr);
-    const fallbackDoc = await clientIndexDocument(file, onProgress);
-    return {
-      success: true,
-      document: fallbackDoc,
-      message: `Indexed ${fallbackDoc.name} into ${fallbackDoc.chunkCount} vector chunks (Client-Side Vector Engine).`,
-    };
+    console.warn('Stream interrupted:', streamErr);
+    try {
+      const fallbackDoc = await clientIndexDocument(file, onProgress);
+      return {
+        success: true,
+        document: fallbackDoc,
+        message: `Indexed ${fallbackDoc.name} into ${fallbackDoc.chunkCount} vector chunks (Client-Side Vector Engine).`,
+      };
+    } catch {
+      return {
+        success: false,
+        error: `Upload streaming interrupted (${streamErr.message || 'Stream error'}).`,
+      };
+    }
   }
 
   if (finalDoc) {

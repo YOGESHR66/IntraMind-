@@ -101,14 +101,15 @@ export function isGibberishText(text: string): boolean {
   const clean = text.trim();
   if (clean.length < 8) return false;
 
-  // Raw PDF internal objects / markers
+  // Raw PDF internal objects / markers or placeholder text
   if (
     clean.includes('/FlateDecode') ||
     clean.includes('/FontDescriptor') ||
     clean.includes('/MediaBox') ||
     clean.includes('endobj') ||
     clean.includes('xref') ||
-    clean.includes('trailer<<')
+    clean.includes('trailer<<') ||
+    (clean.startsWith('Content from ') && (clean.includes('indexed') || clean.includes('workspace') || clean.includes('uploaded successfully')))
   ) {
     return true;
   }
@@ -300,33 +301,28 @@ export async function extractTextInBrowser(file: File): Promise<{ text: string; 
         return { text: extracted, pageCount };
       }
 
-      return {
-        text: `Content from ${file.name}. This document has been indexed and is available in your workspace.`,
-        pageCount,
-      };
-    } catch {
-      return {
-        text: `Content from ${file.name}. Indexed into local vector store.`,
-        pageCount: 1,
-      };
+      throw new Error(
+        `Could not extract readable text from "${file.name}" in browser. Please ensure the backend server is reachable so server-side PDF parsing and Gemini OCR can process this document.`
+      );
+    } catch (pdfErr: any) {
+      throw new Error(
+        pdfErr?.message || `Could not extract text from "${file.name}". Please ensure the backend server is reachable.`
+      );
     }
   }
 
-  // Fallback for docx or other formats
+  // Fallback for docx, txt, csv, or code formats
   try {
     const raw = await file.text();
     const clean = raw.replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (clean.length > 40) {
+    if (clean.length > 20 && !isGibberishText(clean)) {
       return { text: clean, pageCount: 1 };
     }
   } catch {
     // ignore
   }
 
-  return {
-    text: `Content from ${file.name}. Indexed into local vector store.`,
-    pageCount: 1,
-  };
+  throw new Error(`Unable to extract readable content from "${file.name}".`);
 }
 
 /**

@@ -40,7 +40,11 @@ export function createExpressApp() {
 
   // Health check endpoint
   app.get(["/api/health", "/health"], (_req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+    res.json({
+      status: "ok",
+      hasApiKey: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()),
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // Get all uploaded documents
