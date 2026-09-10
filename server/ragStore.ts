@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import zlib from "zlib";
 import { DocumentChunk, PDFDocument, SearchResult, Citation, RAGSettings } from "../src/types";
+import { SAMPLE_DOCUMENTS } from "./sampleDocs";
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -53,15 +54,15 @@ async function callGeminiWithFallback(
     preferred,
     'gemini-3.1-flash-lite',
     'gemini-flash-latest',
-    'gemini-3.8-flash',
+    'gemini-3.1-pro-preview',
   ];
 
   // Remove duplicates while preserving priority order
   const uniqueModels = Array.from(new Set(modelsToTry));
   let lastError: any = null;
 
-  // 10s timeout per call so requests never get terminated by reverse proxy timeouts
-  const timeoutMs = params.timeoutMs || 10000;
+  // 25s timeout per model attempt
+  const timeoutMs = params.timeoutMs || 25000;
 
   // Apply LOW thinkingLevel by default to minimize reasoning latency and avoid timeouts
   const mergedConfig = {
@@ -146,20 +147,37 @@ export function isGibberishText(text: string): boolean {
 
 // Check if text is raw PDF source code/streams or structural tags rather than human readable text
 function isRawPdfSyntax(text: string): boolean {
-  if (!text) return true;
+  if (!text || !text.trim()) return true;
+  const lower = text.toLowerCase();
   if (
-    text.includes('%PDF-') ||
-    text.includes('/FlateDecode') ||
-    text.includes('ReportLab PDF Library') ||
-    text.includes('[PDF Document uploaded successfully')
+    lower.includes('%pdf-') ||
+    lower.includes('/flatedecode') ||
+    lower.includes('flatedecode') ||
+    lower.includes('reportlab') ||
+    lower.includes('content credentials') ||
+    lower.includes('parent 18 0 r') ||
+    lower.includes('[pdf document uploaded successfully')
   ) {
     return true;
   }
-  const pdfSyntaxMatches = text.match(/\/(Catalog|Pages|Page|Type|MediaBox|Contents|Resources|Font|Encoding|Length|Filter|Parent|Root|XObject|FlateDecode)\b/g);
+  // Check for indirect object references like "19 0 R", "18 0 R", "Contents 20 0 R", "Parent 18 0 R"
+  const refMatches = text.match(/\b(?:Contents|Parent|Root|Pages|Info|Resources)?\s*\d+\s+0\s+R\b/gi);
+  if (refMatches && refMatches.length >= 1) {
+    return true;
+  }
+  const generalRefMatches = text.match(/\b\d+\s+\d+\s+R\b/g);
+  if (generalRefMatches && generalRefMatches.length >= 2) {
+    return true;
+  }
+  // Check for SVG / PDF vector path coordinate dumps (e.g. fill "M508.749 317.399C516.777...")
+  if (/fill\s*"?M[0-9]/i.test(text) || /[A-Z]\d{2,3}\.\d{3}/.test(text) || /\bM\d+\.\d+C\d+/i.test(text)) {
+    return true;
+  }
+  const pdfSyntaxMatches = text.match(/\/?(?:Catalog|Pages|Page|Type|MediaBox|Contents|Resources|Font|Encoding|Length|Filter|Parent|Root|XObject|FlateDecode)\b/gi);
   if (pdfSyntaxMatches && pdfSyntaxMatches.length >= 2) {
     return true;
   }
-  const objMatches = text.match(/\b\d+\s+\d+\s+obj\b/g);
+  const objMatches = text.match(/\b\d+\s+\d+\s+obj\b/gi);
   if (objMatches && objMatches.length >= 1) {
     return true;
   }
@@ -428,6 +446,47 @@ function persistStoreToDisk() {
   }
 }
 
+export function seedSampleDocument(sampleId?: string): PDFDocument | null {
+  const target = sampleId
+    ? SAMPLE_DOCUMENTS.find((s) => s.id === sampleId)
+    : SAMPLE_DOCUMENTS.find((s) => s.id === "sample-agi-10-page-report") || SAMPLE_DOCUMENTS[0];
+
+  if (!target) return null;
+
+  // Check if already in store
+  const existing = documentsStore.find((d) => d.name === target.name);
+  if (existing) return existing;
+
+  const docId = target.id;
+  const createdChunks: DocumentChunk[] = [];
+
+  for (const page of target.pages) {
+    const pChunks = chunkDocumentText(docId, target.name, page.pageNumber, page.text);
+    for (const chunk of pChunks) {
+      chunk.embedding = getEmbeddingSync(chunk.text);
+      createdChunks.push(chunk);
+    }
+  }
+
+  const docMeta: PDFDocument = {
+    id: docId,
+    name: target.name,
+    fileSize: 1024 * 48 * target.pageCount,
+    pageCount: target.pageCount,
+    uploadedAt: new Date().toISOString(),
+    chunkCount: createdChunks.length,
+    fileType: 'pdf',
+    mimeType: 'application/pdf',
+    isSample: false,
+  };
+
+  documentsStore.push(docMeta);
+  chunksStore.push(...createdChunks);
+  persistStoreToDisk();
+  console.log(`Seeded sample document ${target.name} with ${createdChunks.length} vector chunks.`);
+  return docMeta;
+}
+
 function loadStoreFromDisk() {
   try {
     if (fs.existsSync(CACHE_FILE)) {
@@ -435,21 +494,32 @@ function loadStoreFromDisk() {
       if (Array.isArray(data?.documents) && Array.isArray(data?.chunks)) {
         documentsStore.length = 0;
         chunksStore.length = 0;
-        // Prune any sample or resnet files to ensure clean start
-        const cleanedDocs = data.documents.filter(
-          (d: PDFDocument) => !d.name?.toLowerCase().includes('resnet') && !d.isSample
-        );
-        const validDocIds = new Set(cleanedDocs.map((d: PDFDocument) => d.id));
-        const cleanedChunks = data.chunks.filter((c: DocumentChunk) => validDocIds.has(c.docId));
 
-        documentsStore.push(...cleanedDocs);
-        chunksStore.push(...cleanedChunks);
+        // Aggressively purge any corrupted chunks or raw PDF bytecode
+        const validChunks = data.chunks.filter(
+          (c: DocumentChunk) => c && c.text && !isRawPdfSyntax(c.text) && !isGibberishText(c.text)
+        );
+        const validDocIdsWithChunks = new Set(validChunks.map((c: DocumentChunk) => c.docId));
+
+        const validDocs = data.documents.filter((d: PDFDocument) => {
+          if (d.name?.toLowerCase().includes('resnet')) return false;
+          if (d.chunkCount > 0 && !validDocIdsWithChunks.has(d.id)) return false;
+          return true;
+        });
+
+        documentsStore.push(...validDocs);
+        chunksStore.push(...validChunks);
         persistStoreToDisk();
         console.log(`Restored ${documentsStore.length} documents and ${chunksStore.length} vector chunks from persistent cache.`);
       }
     }
   } catch (err) {
     console.warn("Failed to load RAG store from disk:", err);
+  }
+
+  // If store is empty, automatically seed the 10-page AGI Report
+  if (documentsStore.length === 0) {
+    seedSampleDocument("sample-agi-10-page-report");
   }
 }
 
@@ -1233,7 +1303,12 @@ export function importClientChunks(clientChunks: DocumentChunk[], clientDocs?: P
   const existingIds = new Set(chunksStore.map((c) => c.id));
   let addedChunks = 0;
   for (const chunk of clientChunks) {
-    if (!existingIds.has(chunk.id) && chunk.text && !isGibberishText(chunk.text)) {
+    if (
+      !existingIds.has(chunk.id) &&
+      chunk.text &&
+      !isRawPdfSyntax(chunk.text) &&
+      !isGibberishText(chunk.text)
+    ) {
       chunksStore.push(chunk);
       existingIds.add(chunk.id);
       addedChunks++;

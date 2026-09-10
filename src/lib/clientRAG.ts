@@ -144,20 +144,37 @@ export function isGibberishText(text: string): boolean {
  * Check if text is raw PDF source code/streams or structural tags rather than human readable text
  */
 export function isRawPdfSyntax(text: string): boolean {
-  if (!text) return true;
+  if (!text || !text.trim()) return true;
+  const lower = text.toLowerCase();
   if (
-    text.includes('%PDF-') ||
-    text.includes('/FlateDecode') ||
-    text.includes('ReportLab PDF Library') ||
-    text.includes('[PDF Document uploaded successfully')
+    lower.includes('%pdf-') ||
+    lower.includes('/flatedecode') ||
+    lower.includes('flatedecode') ||
+    lower.includes('reportlab') ||
+    lower.includes('content credentials') ||
+    lower.includes('parent 18 0 r') ||
+    lower.includes('[pdf document uploaded successfully')
   ) {
     return true;
   }
-  const pdfSyntaxMatches = text.match(/\/(Catalog|Pages|Page|Type|MediaBox|Contents|Resources|Font|Encoding|Length|Filter|Parent|Root|XObject|FlateDecode)\b/g);
+  // Check for indirect object references like "19 0 R", "18 0 R", "Contents 20 0 R", "Parent 18 0 R"
+  const refMatches = text.match(/\b(?:Contents|Parent|Root|Pages|Info|Resources)?\s*\d+\s+0\s+R\b/gi);
+  if (refMatches && refMatches.length >= 1) {
+    return true;
+  }
+  const generalRefMatches = text.match(/\b\d+\s+\d+\s+R\b/g);
+  if (generalRefMatches && generalRefMatches.length >= 2) {
+    return true;
+  }
+  // Check for SVG / PDF vector path coordinate dumps (e.g. fill "M508.749 317.399C516.777...")
+  if (/fill\s*"?M[0-9]/i.test(text) || /[A-Z]\d{2,3}\.\d{3}/.test(text) || /\bM\d+\.\d+C\d+/i.test(text)) {
+    return true;
+  }
+  const pdfSyntaxMatches = text.match(/\/?(?:Catalog|Pages|Page|Type|MediaBox|Contents|Resources|Font|Encoding|Length|Filter|Parent|Root|XObject|FlateDecode)\b/gi);
   if (pdfSyntaxMatches && pdfSyntaxMatches.length >= 2) {
     return true;
   }
-  const objMatches = text.match(/\b\d+\s+\d+\s+obj\b/g);
+  const objMatches = text.match(/\b\d+\s+\d+\s+obj\b/gi);
   if (objMatches && objMatches.length >= 1) {
     return true;
   }
@@ -353,14 +370,33 @@ export async function extractTextInBrowser(file: File): Promise<{ text: string; 
         }
       }
 
-      // 3. Robust word-sequence extraction if stream operators were encrypted or compact
+      // 3. If stream operators yielded no text, attempt server upload extraction if available
       if (textChunks.length === 0) {
-        const wordRuns = rawPdf.match(/[A-Za-z0-9,.:;'"?!()\-]{3,}(?:\s+[A-Za-z0-9,.:;'"?!()\-]+){2,}/g) || [];
-        for (const run of wordRuns) {
-          const trimmed = run.trim();
-          if (!isRawPdfSyntax(trimmed) && !isGibberishText(trimmed) && trimmed.length > 10) {
-            textChunks.push(trimmed);
+        try {
+          const formData = new FormData();
+          formData.append('file', file, file.name);
+          const srvRes = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' },
+          });
+          if (srvRes.ok) {
+            const srvJson = await srvRes.json();
+            if (srvJson?.document?.id) {
+              const chunkRes = await fetch(`/api/documents/${srvJson.document.id}/chunks`);
+              if (chunkRes.ok) {
+                const chunkJson = await chunkRes.json();
+                if (Array.isArray(chunkJson.chunks) && chunkJson.chunks.length > 0) {
+                  const srvText = chunkJson.chunks.map((c: any) => c.text).filter((t: string) => !isRawPdfSyntax(t)).join('\n\n');
+                  if (srvText.length > 30) {
+                    return { text: srvText, pageCount: srvJson.document.pageCount || pageCount };
+                  }
+                }
+              }
+            }
           }
+        } catch {
+          // Server not reachable, proceed to safe metadata fallback
         }
       }
 
@@ -496,11 +532,16 @@ export function getClientStoredDocuments(): PDFDocument[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    // Filter out corrupted documents that only have gibberish or empty content
+    // Filter out corrupted documents that have no readable text or only raw PDF object syntax
+    const validChunks = getClientStoredChunks();
+    const docIdsWithValidChunks = new Set(validChunks.map((c) => c.docId));
+
     const validDocs = parsed.filter((d: PDFDocument) => {
-      const chunks = getClientStoredChunks(d.id);
-      if (chunks.length === 0) return true;
-      return chunks.some((c) => !isGibberishText(c.text));
+      // If the doc was registered with chunks, ensure at least 1 clean chunk exists
+      if (d.chunkCount > 0 && !docIdsWithValidChunks.has(d.id)) {
+        return false;
+      }
+      return true;
     });
 
     if (validDocs.length !== parsed.length) {
@@ -527,8 +568,10 @@ export function getClientStoredChunks(docId?: string): DocumentChunk[] {
     const parsed: DocumentChunk[] = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    // Automatically purge any corrupted or gibberish chunks from client storage
-    const validChunks = parsed.filter((c) => !isGibberishText(c.text));
+    // Automatically purge any corrupted chunks, raw PDF bytecode, or gibberish from client storage
+    const validChunks = parsed.filter(
+      (c) => c && c.text && !isRawPdfSyntax(c.text) && !isGibberishText(c.text)
+    );
     if (validChunks.length !== parsed.length) {
       try {
         localStorage.setItem(LOCAL_STORAGE_CLIENT_CHUNKS, JSON.stringify(validChunks));
@@ -547,8 +590,11 @@ export function getClientStoredChunks(docId?: string): DocumentChunk[] {
 export function saveClientStoredChunks(newChunks: DocumentChunk[]): void {
   try {
     const existing = getClientStoredChunks();
-    const newIds = new Set(newChunks.map((c) => c.id));
-    const combined = [...existing.filter((c) => !newIds.has(c.id)), ...newChunks];
+    const cleanNewChunks = newChunks.filter(
+      (c) => c && c.text && !isRawPdfSyntax(c.text) && !isGibberishText(c.text)
+    );
+    const newIds = new Set(cleanNewChunks.map((c) => c.id));
+    const combined = [...existing.filter((c) => !newIds.has(c.id)), ...cleanNewChunks];
     localStorage.setItem(LOCAL_STORAGE_CLIENT_CHUNKS, JSON.stringify(combined.slice(-1000)));
   } catch {
     // ignore
@@ -668,8 +714,10 @@ export function clientQueryRAG(
     allChunks = getClientStoredChunks();
   }
 
-  // Strict purge of any gibberish or unreadable text
-  allChunks = allChunks.filter((c) => !isGibberishText(c.text));
+  // Strict purge of any raw PDF syntax, byte streams, or gibberish text
+  allChunks = allChunks.filter(
+    (c) => c && c.text && !isRawPdfSyntax(c.text) && !isGibberishText(c.text)
+  );
 
   if (selectedDocIds.length > 0) {
     const idSet = new Set(selectedDocIds);
@@ -678,7 +726,7 @@ export function clientQueryRAG(
 
   if (allChunks.length === 0) {
     return {
-      answer: 'No readable document passages were found in your active documents. If you recently uploaded a scanned document or image without a text layer, please upload a text-based document or re-index.',
+      answer: '### ⚠️ No Readable Document Passages Found\n\nThe selected document contained non-extractable streams or unindexed formatting. To test semantic vector search immediately, click **"Load AGI Report"** or re-upload a clean document with selectable text.',
       citations: [],
       retrievedChunks: [],
       reasoningTimeMs: Date.now() - startTime,

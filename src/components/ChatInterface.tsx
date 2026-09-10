@@ -158,6 +158,7 @@ interface ChatInterfaceProps {
   onSelectSession?: (session: ChatSession) => void;
   preciseOutput?: boolean;
   onTogglePreciseOutput?: () => void;
+  onLoadSampleDoc?: (sampleId?: string) => void;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -189,6 +190,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onSelectSession,
   preciseOutput,
   onTogglePreciseOutput,
+  onLoadSampleDoc,
 }) => {
   const [internalPreciseOutput, setInternalPreciseOutput] = useState(false);
   const isPrecise = preciseOutput !== undefined ? preciseOutput : (settings?.preciseOutput ?? internalPreciseOutput);
@@ -320,10 +322,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     prevMessagesLengthRef.current = messages.length;
   }, [messages.length, isLoading, scrollToBottom]);
 
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!inputQuery.trim() || isLoading) return;
-    onSendMessage(inputQuery.trim());
+  const handleSubmit = (e?: React.FormEvent | string) => {
+    if (e && typeof e !== 'string' && 'preventDefault' in e) {
+      e.preventDefault();
+    }
+    const queryToSend = typeof e === 'string' ? e : inputQuery;
+    if (!queryToSend.trim() || isLoading) return;
+    onSendMessage(queryToSend.trim());
     setInputQuery('');
   };
 
@@ -1037,6 +1042,61 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* If no documents uploaded yet, provide instant 1-click button to load the 10-page AGI report */}
+            {documents.length === 0 && (
+              <div className="w-full max-w-3xl mt-4 p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-white">Interview Ready: 10-Page AGI Industry Report</h4>
+                    <p className="text-xs text-slate-300">Click to load complete 10-page expert document with vector indexing.</p>
+                  </div>
+                </div>
+                {onLoadSampleDoc && (
+                  <button
+                    type="button"
+                    onClick={() => onLoadSampleDoc('sample-agi-10-page-report')}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+                  >
+                    Load 10-Page Report
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Quick Demonstration Questions for Interviews */}
+            {documents.length > 0 && (
+              <div className="w-full max-w-3xl mt-4 text-left">
+                <p className="text-[11px] font-medium text-slate-400 mb-2 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Suggested interview questions (click to test instant RAG retrieval & citations):</span>
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    "What is Artificial General Intelligence (AGI) and how does it differ from ANI?",
+                    "What are the ARC-AGI and SWE-bench evaluation benchmarks?",
+                    "What are the compute scaling laws and energy requirements for frontier AI?",
+                    "What are the consensus timeline projections for AGI (2026-2030)?",
+                  ].map((q, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setInputQuery(q);
+                        handleSubmit(q);
+                      }}
+                      className="text-left px-3.5 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-indigo-500/40 text-xs text-slate-200 transition-all cursor-pointer group flex items-start gap-2"
+                    >
+                      <span className="text-indigo-400 shrink-0 mt-0.5 font-bold">Q:</span>
+                      <span className="group-hover:text-white transition-colors">{q}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Recent Saved Conversations from Local Storage */}
             {recentSessions && recentSessions.length > 0 && (

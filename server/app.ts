@@ -11,7 +11,9 @@ import {
   performSemanticSearch,
   queryRAGPipeline,
   generateDocumentSummary,
+  seedSampleDocument,
 } from "./ragStore";
+import { SAMPLE_DOCUMENTS } from "./sampleDocs";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -53,6 +55,32 @@ export function createExpressApp() {
   app.get(["/api/documents", "/documents"], (_req, res) => {
     const docs = getDocuments();
     res.json({ documents: docs });
+  });
+
+  // Get list of available sample demonstration documents
+  app.get(["/api/sample-documents", "/sample-documents"], (_req, res) => {
+    const list = SAMPLE_DOCUMENTS.map((s) => ({
+      id: s.id,
+      name: s.name,
+      pageCount: s.pageCount,
+      description: s.name.includes("AGI")
+        ? "10-page expert research report covering AGI definitions, architectures, benchmarks (ARC-AGI), compute scaling, alignment, and consensus timelines."
+        : s.name.includes("TechCorp")
+        ? "4-page corporate earnings report with financial statements, cloud AI revenue, and datacenter efficiency."
+        : "3-page security microkernel and memory encryption specification.",
+    }));
+    res.json({ sampleDocuments: list });
+  });
+
+  // Seed / load a sample document into active workspace
+  app.post(["/api/sample-documents/:id/load", "/sample-documents/:id/load"], (req, res) => {
+    const { id } = req.params;
+    const doc = seedSampleDocument(id);
+    if (doc) {
+      res.json({ success: true, document: doc });
+    } else {
+      res.status(404).json({ success: false, error: "Sample document not found" });
+    }
   });
 
   // Get document chunks by document ID

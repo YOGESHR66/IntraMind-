@@ -18,6 +18,7 @@ import {
   clientQueryRAG,
   clientIndexDocument,
   isGibberishText,
+  isRawPdfSyntax,
 } from './lib/clientRAG';
 import { ChatHistoryModal } from './components/ChatHistoryModal';
 import {
@@ -151,14 +152,31 @@ export default function App() {
       const uniqueClientDocs = clientDocs.filter((d) => !serverIds.has(d.id) && !serverNames.has(d.name));
       let docs: PDFDocument[] = [...serverDocs, ...uniqueClientDocs];
 
-      // Prune any stale resnet or sample files
-      const staleDocs = docs.filter(d => d.name?.toLowerCase().includes('resnet') || d.isSample);
+      // Prune any stale resnet files
+      const staleDocs = docs.filter((d) => d.name?.toLowerCase().includes('resnet'));
       if (staleDocs.length > 0) {
         for (const s of staleDocs) {
           fetchApi(`/api/documents/${s.id}`, { method: 'DELETE' }).catch(() => {});
           deleteClientDocument(s.id);
         }
-        docs = docs.filter(d => !d.name?.toLowerCase().includes('resnet') && !d.isSample);
+        docs = docs.filter((d) => !d.name?.toLowerCase().includes('resnet'));
+      }
+
+      // If no documents exist in workspace, auto-load AGI 10-page report so workspace is immediately ready for interviews
+      if (docs.length === 0) {
+        try {
+          const loadRes = await fetchApi('/api/sample-documents/sample-agi-10-page-report/load', {
+            method: 'POST',
+          });
+          if (loadRes.ok) {
+            const data = await loadRes.json();
+            if (data?.document) {
+              docs = [data.document];
+            }
+          }
+        } catch {
+          // ignore
+        }
       }
 
       setDocuments(docs);
@@ -495,6 +513,35 @@ export default function App() {
     }
   };
 
+  const handleLoadSampleDoc = async (sampleId: string = 'sample-agi-10-page-report') => {
+    setIsUploading(true);
+    setUploadingFileName('AGI_10_Page_Report.pdf');
+    try {
+      const res = await fetchApi(`/api/sample-documents/${sampleId}/load`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.document) {
+          const newDoc: PDFDocument = data.document;
+          setDocuments((prev) => {
+            const filtered = prev.filter((d) => d.id !== newDoc.id);
+            return [newDoc, ...filtered];
+          });
+          setActiveDoc(newDoc);
+          setSelectedDocIds((prev) => Array.from(new Set([newDoc.id, ...prev])));
+          await fetchChunksForActiveDoc(newDoc.id);
+          setUploadSuccessNotice(`Loaded demo report "${newDoc.name}" (${newDoc.pageCount} pages, vector indexed).`);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load sample document:', err);
+    } finally {
+      setIsUploading(false);
+      setUploadingFileName(null);
+    }
+  };
+
   const handleToggleDocSelection = (docId: string) => {
     setSelectedDocIds(prev => {
       let next: string[];
@@ -554,7 +601,14 @@ export default function App() {
       let retrievedChunks: any[] = [];
       let reasoningTimeMs = 0;
 
-      const effectiveChunks = allChunks.length > 0 ? allChunks : getClientStoredChunks();
+      // Target documents: Use explicitly selected documents or default to all available documents
+      const targetDocIds =
+        selectedDocIds.length > 0 ? selectedDocIds : documents.map((d) => d.id);
+
+      const rawChunks = allChunks.length > 0 ? allChunks : getClientStoredChunks();
+      const effectiveChunks = rawChunks.filter(
+        (c) => c && c.text && !isRawPdfSyntax(c.text) && !isGibberishText(c.text)
+      );
       const effectiveDocs = documents.length > 0 ? documents : getClientStoredDocuments();
 
       const res = await fetchApi('/api/query', {
@@ -562,12 +616,12 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          selectedDocIds,
+          selectedDocIds: targetDocIds,
           settings: {
             ...ragSettings,
-            selectedDocIds,
+            selectedDocIds: targetDocIds,
           },
-          chatHistory: messages.map(m => ({ role: m.sender, text: m.content })),
+          chatHistory: messages.map((m) => ({ role: m.sender, text: m.content })),
           clientChunks: effectiveChunks,
           clientDocs: effectiveDocs,
         }),
@@ -582,7 +636,13 @@ export default function App() {
         isSuccess = true;
       } else {
         // Fallback to client-side vector search across active chunks
-        const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, effectiveChunks);
+        const clientRes = clientQueryRAG(
+          query,
+          targetDocIds,
+          ragSettings.topK,
+          ragSettings.similarityThreshold,
+          effectiveChunks
+        );
         if (clientRes.retrievedChunks.length > 0 || clientRes.citations.length > 0 || effectiveChunks.length > 0) {
           finalAnswer = clientRes.answer;
           citations = clientRes.citations;
@@ -864,6 +924,7 @@ export default function App() {
                   onAbortUpload={handleAbortUpload}
                   onDeleteDoc={handleDeleteDoc}
                   onToggleDocSelection={handleToggleDocSelection}
+                  onLoadSampleDoc={handleLoadSampleDoc}
                 />
               </div>
 
