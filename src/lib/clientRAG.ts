@@ -775,20 +775,82 @@ export function clientQueryRAG(
     similarity: Number(item.similarity.toFixed(3)),
   }));
 
-  // Clean, structured synthesis without raw bracket numbers or gibberish
+  // Clean, structured synthesis without raw bracket numbers, hanging numbers, or broken markdown
   const cleanTitle = query.trim().replace(/[?.:!]+$/, '').trim();
   const titleHeading = cleanTitle.length > 0
     ? cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1)
     : 'Document Findings';
 
-  const insightPoints = relevant.map((r) => {
-    let sentence = r.chunk.text.split(/[.?!]\s+/)[0] || r.chunk.text.slice(0, 160);
-    sentence = sentence.replace(/^[•\s\-_*]+/, '').trim();
-    if (!sentence.endsWith('.')) sentence += '.';
-    return `• **${sentence}**\n  *Source: ${r.chunk.docName} — Page ${r.chunk.pageNumber}*`;
-  });
+  const queryWords = query.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
 
-  const answer = `### 🎯 ${titleHeading}\n\n${insightPoints.join('\n\n')}\n\n*Verified across ${relevant.length} passage(s) with grounded citations.*`;
+  // Helper to clean chunk text of raw markdown artifacts and table delimiters
+  const cleanSnippet = (text: string): string => {
+    return text
+      .replace(/^#+\s+[^\n]+/gm, '')
+      .replace(/\|\s*[-:]+\s*\|.*$/gm, '')
+      .replace(/^\s*\d+[.)]\s+/gm, '')
+      .replace(/^\s*[-*•]\s+/gm, '')
+      .replace(/\|\s*/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const extractedPoints: { text: string; docName: string; page: number }[] = [];
+
+  for (const item of relevant) {
+    const clean = cleanSnippet(item.chunk.text);
+    const sentences = clean
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+      .map(s => s.trim())
+      .filter(s => s.length >= 25 && !s.startsWith('|') && !s.includes('```'));
+
+    const scored = sentences.map(s => {
+      let score = 0;
+      const sLower = s.toLowerCase();
+      for (const w of queryWords) {
+        if (sLower.includes(w)) score += 2;
+      }
+      return { text: s, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+
+    for (const sc of scored.slice(0, 2)) {
+      if (sc.text) {
+        let sent = sc.text.trim();
+        if (!/[.!?]$/.test(sent)) sent += '.';
+        extractedPoints.push({
+          text: sent,
+          docName: item.chunk.docName,
+          page: item.chunk.pageNumber,
+        });
+      }
+    }
+  }
+
+  // Deduplicate
+  const uniquePoints: typeof extractedPoints = [];
+  const seenTexts = new Set<string>();
+  for (const pt of extractedPoints) {
+    const key = pt.text.slice(0, 50).toLowerCase();
+    if (!seenTexts.has(key)) {
+      seenTexts.add(key);
+      uniquePoints.push(pt);
+    }
+    if (uniquePoints.length >= 4) break;
+  }
+
+  let answer = '';
+  if (uniquePoints.length > 0) {
+    const bulletList = uniquePoints.map(p => {
+      return `• ${p.text}\n  *(Source: ${p.docName} — Page ${p.page})*`;
+    }).join('\n\n');
+    answer = `### 🎯 ${titleHeading}\n\nHere are the core verified facts retrieved from your active documents:\n\n${bulletList}\n\n*Verified across ${relevant.length} passage(s) with grounded citations.*`;
+  } else {
+    const topChunk = relevant[0]?.chunk;
+    const fallbackText = cleanSnippet(topChunk?.text || '').slice(0, 280);
+    answer = `### 🎯 ${titleHeading}\n\n${fallbackText}...\n\n*Source: ${topChunk?.docName || 'Document'} — Page ${topChunk?.pageNumber || 1}*`;
+  }
 
   return {
     answer,

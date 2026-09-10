@@ -531,7 +531,12 @@ export default function App() {
           setActiveDoc(newDoc);
           setSelectedDocIds((prev) => Array.from(new Set([newDoc.id, ...prev])));
           await fetchChunksForActiveDoc(newDoc.id);
-          setUploadSuccessNotice(`Loaded demo report "${newDoc.name}" (${newDoc.pageCount} pages, vector indexed).`);
+          setUploadSuccessNotice({
+            docName: newDoc.name,
+            chunkCount: newDoc.chunkCount,
+            fileSize: newDoc.fileSize,
+            fileType: newDoc.fileType || 'pdf',
+          });
         }
       }
     } catch (err) {
@@ -611,7 +616,19 @@ export default function App() {
       );
       const effectiveDocs = documents.length > 0 ? documents : getClientStoredDocuments();
 
-      const res = await fetchApi('/api/query', {
+      // Strip out huge 256-number embedding arrays to keep payload small and fast (<50KB instead of 2MB)
+      const lightweightChunks = effectiveChunks.map((c) => ({
+        id: c.id,
+        docId: c.docId,
+        docName: c.docName,
+        pageNumber: c.pageNumber,
+        chunkIndex: c.chunkIndex,
+        text: c.text,
+        tokenCount: c.tokenCount,
+      }));
+
+      // Call RAG server API with automatic retry
+      let res = await fetchApi('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -622,10 +639,35 @@ export default function App() {
             selectedDocIds: targetDocIds,
           },
           chatHistory: messages.map((m) => ({ role: m.sender, text: m.content })),
-          clientChunks: effectiveChunks,
+          clientChunks: lightweightChunks,
           clientDocs: effectiveDocs,
         }),
-      }).catch(() => null);
+      }).catch((err) => {
+        console.warn('Primary /api/query attempt notice:', err);
+        return null;
+      });
+
+      // If primary attempt failed with proxy delay or server restart, retry once
+      if (!res || !res.ok) {
+        if (!res || res.status >= 500) {
+          await new Promise((r) => setTimeout(r, 800));
+          res = await fetchApi('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              selectedDocIds: targetDocIds,
+              settings: {
+                ...ragSettings,
+                selectedDocIds: targetDocIds,
+              },
+              chatHistory: messages.map((m) => ({ role: m.sender, text: m.content })),
+              clientChunks: lightweightChunks,
+              clientDocs: effectiveDocs,
+            }),
+          }).catch(() => null);
+        }
+      }
 
       if (res && res.ok) {
         const data = await res.json();

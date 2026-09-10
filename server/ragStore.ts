@@ -1309,6 +1309,9 @@ export function importClientChunks(clientChunks: DocumentChunk[], clientDocs?: P
       !isRawPdfSyntax(chunk.text) &&
       !isGibberishText(chunk.text)
     ) {
+      if (!chunk.embedding || chunk.embedding.length === 0) {
+        chunk.embedding = getEmbeddingSync(chunk.text);
+      }
       chunksStore.push(chunk);
       existingIds.add(chunk.id);
       addedChunks++;
