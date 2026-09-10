@@ -699,7 +699,12 @@ export function clientQueryRAG(
   });
 
   scored.sort((a, b) => b.similarity - a.similarity);
-  const relevant = scored.filter((s) => s.similarity >= similarityThreshold).slice(0, topK);
+  let relevant = scored.filter((s) => s.similarity >= similarityThreshold).slice(0, topK);
+
+  // Fallback guarantee: if documents exist, never return 0 results
+  if (relevant.length === 0 && scored.length > 0) {
+    relevant = scored.slice(0, Math.min(topK, scored.length));
+  }
 
   if (relevant.length === 0) {
     return {

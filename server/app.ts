@@ -6,6 +6,7 @@ import {
   getChunks,
   deleteDocument,
   clearAllDocuments,
+  importClientChunks,
   processAndIndexFile,
   performSemanticSearch,
   queryRAGPipeline,
@@ -20,7 +21,8 @@ const upload = multer({
 export function createExpressApp() {
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "25mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
   // CORS and pre-flight handling
   app.use((req, res, next) => {
@@ -276,13 +278,36 @@ export function createExpressApp() {
     }
   });
 
+  // Sync client-persisted chunks into the server vector store
+  app.post(["/api/sync", "/sync"], (req, res) => {
+    try {
+      const { chunks, documents } = req.body;
+      if (Array.isArray(chunks) && chunks.length > 0) {
+        importClientChunks(chunks, documents);
+      }
+      res.json({
+        success: true,
+        documentsCount: getDocuments().length,
+        chunksCount: getChunks().length,
+      });
+    } catch (err) {
+      console.warn("Sync error:", err);
+      res.status(500).json({ error: "Failed to sync chunks" });
+    }
+  });
+
   // RAG Query endpoint
   app.post(["/api/query", "/query"], async (req, res) => {
     const startTime = Date.now();
     try {
-      const { query, settings, chatHistory, selectedDocIds } = req.body;
+      const { query, settings, chatHistory, selectedDocIds, clientChunks, clientDocs } = req.body;
       if (!query || typeof query !== "string") {
         return res.status(400).json({ error: "Query string is required" });
+      }
+
+      // If client provided chunks (e.g. from client storage), import them into server store
+      if (Array.isArray(clientChunks) && clientChunks.length > 0) {
+        importClientChunks(clientChunks, clientDocs);
       }
 
       const defaultSettings = {

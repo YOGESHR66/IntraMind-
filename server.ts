@@ -4,15 +4,8 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import app from "./server/app";
 
-// In AI Studio environment (where PORT=3000 is required by the nginx reverse proxy):
-// Check for AI Studio specific indicators (APPLET_ID, CONTROL_PLANE_PORT, or GOOGLE_RUNTIME).
-// On any external deployment (Render, Railway, Heroku, Cloud Run, Docker, VPS), bind to process.env.PORT || 3000.
-const isAiStudioContainer = Boolean(
-  process.env.APPLET_ID || process.env.CONTROL_PLANE_PORT || process.env.GOOGLE_RUNTIME
-);
-const PORT = isAiStudioContainer
-  ? 3000
-  : (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000);
+// In AI Studio environment, port 3000 is hardcoded by infrastructure and required by the nginx reverse proxy.
+const PORT = 3000;
 
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");

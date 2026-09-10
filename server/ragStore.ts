@@ -47,21 +47,21 @@ async function callGeminiWithFallback(
   }
 ) {
   // Use gemini-3.1-flash-lite as primary high-availability model (instant, lowest queue latency),
-  // with resilient fallbacks to gemini-3.8-flash and gemini-flash-latest
+  // Prioritize fast, high-availability models: gemini-3.1-flash-lite followed by gemini-flash-latest
   const preferred = params.preferredModel || 'gemini-3.1-flash-lite';
   const modelsToTry = [
     preferred,
     'gemini-3.1-flash-lite',
-    'gemini-3.8-flash',
     'gemini-flash-latest',
+    'gemini-3.8-flash',
   ];
 
   // Remove duplicates while preserving priority order
   const uniqueModels = Array.from(new Set(modelsToTry));
   let lastError: any = null;
 
-  // Generous 35s timeout (or custom timeout for large OCR) so models don't get aborted prematurely
-  const timeoutMs = params.timeoutMs || 35000;
+  // 10s timeout per call so requests never get terminated by reverse proxy timeouts
+  const timeoutMs = params.timeoutMs || 10000;
 
   // Apply LOW thinkingLevel by default to minimize reasoning latency and avoid timeouts
   const mergedConfig = {
@@ -72,47 +72,28 @@ async function callGeminiWithFallback(
   };
 
   for (const model of uniqueModels) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const generatePromise = ai.models.generateContent({
-          model,
-          contents: params.contents,
-          config: mergedConfig,
-        });
+    try {
+      const generatePromise = ai.models.generateContent({
+        model,
+        contents: params.contents,
+        config: mergedConfig,
+      });
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`Model ${model} timed out after ${Math.round(timeoutMs / 1000)}s`)),
-            timeoutMs
-          )
-        );
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Model ${model} timed out after ${Math.round(timeoutMs / 1000)}s`)),
+          timeoutMs
+        )
+      );
 
-        const response = (await Promise.race([generatePromise, timeoutPromise])) as any;
-        if (response && response.text) {
-          return response;
-        }
-      } catch (err: any) {
-        lastError = err;
-        const errStr = String(err) + (err?.message ? ` ${err.message}` : '');
-        const is503OrHighDemand =
-          errStr.includes('503') ||
-          errStr.includes('high demand') ||
-          errStr.includes('UNAVAILABLE') ||
-          errStr.includes('overloaded');
-        const is429 =
-          errStr.includes('429') ||
-          errStr.includes('RESOURCE_EXHAUSTED') ||
-          errStr.includes('quota');
-        const isTimeout = errStr.includes('timed out');
-
-        console.warn(`[Gemini Resiliency] Model ${model} (attempt ${attempt + 1}/2): ${errStr.substring(0, 90)}... transitioning to resilient fallback.`);
-
-        if ((is503OrHighDemand || is429 || isTimeout) && attempt === 0) {
-          await new Promise((r) => setTimeout(r, 450));
-          continue;
-        }
-        break;
+      const response = (await Promise.race([generatePromise, timeoutPromise])) as any;
+      if (response && response.text) {
+        return response;
       }
+    } catch (err: any) {
+      lastError = err;
+      const errStr = String(err) + (err?.message ? ` ${err.message}` : '');
+      console.warn(`[Gemini Resiliency] Model ${model} failed (${errStr.substring(0, 90)}...); shifting to fallback model.`);
     }
   }
 
@@ -1244,6 +1225,58 @@ export function clearAllDocuments(): void {
   documentsStore.length = 0;
   chunksStore.length = 0;
   persistStoreToDisk();
+}
+
+// Sync/import chunks into the server vector store from client-persisted storage
+export function importClientChunks(clientChunks: DocumentChunk[], clientDocs?: PDFDocument[]): void {
+  if (!Array.isArray(clientChunks) || clientChunks.length === 0) return;
+  const existingIds = new Set(chunksStore.map((c) => c.id));
+  let addedChunks = 0;
+  for (const chunk of clientChunks) {
+    if (!existingIds.has(chunk.id) && chunk.text && !isGibberishText(chunk.text)) {
+      chunksStore.push(chunk);
+      existingIds.add(chunk.id);
+      addedChunks++;
+    }
+  }
+
+  // Also ensure documents are registered in documentsStore
+  if (Array.isArray(clientDocs) && clientDocs.length > 0) {
+    const existingDocIds = new Set(documentsStore.map((d) => d.id));
+    for (const doc of clientDocs) {
+      if (!existingDocIds.has(doc.id)) {
+        documentsStore.push(doc);
+        existingDocIds.add(doc.id);
+      }
+    }
+  } else {
+    // Synthesize document records if missing
+    const existingDocIds = new Set(documentsStore.map((d) => d.id));
+    const docGroups = new Map<string, { docName: string; maxPage: number; count: number }>();
+    for (const c of chunksStore) {
+      if (!existingDocIds.has(c.docId)) {
+        const entry = docGroups.get(c.docId) || { docName: c.docName, maxPage: 1, count: 0 };
+        entry.maxPage = Math.max(entry.maxPage, c.pageNumber || 1);
+        entry.count++;
+        docGroups.set(c.docId, entry);
+      }
+    }
+    for (const [docId, meta] of docGroups.entries()) {
+      documentsStore.push({
+        id: docId,
+        name: meta.docName,
+        uploadedAt: new Date().toISOString(),
+        pageCount: meta.maxPage,
+        chunkCount: meta.count,
+        fileSize: 1024 * meta.count,
+        fileType: meta.docName.toLowerCase().endsWith(".pdf") ? "pdf" : "txt",
+      });
+    }
+  }
+
+  if (addedChunks > 0) {
+    persistStoreToDisk();
+  }
 }
 
 // Generate document summary using Gemini

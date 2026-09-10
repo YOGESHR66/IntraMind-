@@ -163,8 +163,19 @@ export default function App() {
 
       setDocuments(docs);
 
+      // If we have client-stored chunks, sync them to backend so the server vector store is hot
+      const localChunks = getClientStoredChunks();
+      if (localChunks.length > 0) {
+        fetchApi('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chunks: localChunks, documents: docs }),
+        }).catch(() => {});
+      }
+
       if (docs.length > 0 && !activeDoc) {
         setActiveDoc(docs[0]);
+        fetchChunksForActiveDoc(docs[0].id);
       } else if (docs.length === 0) {
         setActiveDoc(null);
       }
@@ -173,7 +184,10 @@ export default function App() {
       const clientDocs = getClientStoredDocuments();
       if (clientDocs.length > 0) {
         setDocuments(clientDocs);
-        if (!activeDoc) setActiveDoc(clientDocs[0]);
+        if (!activeDoc) {
+          setActiveDoc(clientDocs[0]);
+          fetchChunksForActiveDoc(clientDocs[0].id);
+        }
       }
     }
   };
@@ -229,6 +243,7 @@ export default function App() {
   useEffect(() => {
     checkBackendHealth();
     fetchDocuments();
+    fetchChunksForActiveDoc();
     const loadedSessions = loadAllSessions();
     setSessions(loadedSessions);
 
@@ -539,6 +554,9 @@ export default function App() {
       let retrievedChunks: any[] = [];
       let reasoningTimeMs = 0;
 
+      const effectiveChunks = allChunks.length > 0 ? allChunks : getClientStoredChunks();
+      const effectiveDocs = documents.length > 0 ? documents : getClientStoredDocuments();
+
       const res = await fetchApi('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -550,6 +568,8 @@ export default function App() {
             selectedDocIds,
           },
           chatHistory: messages.map(m => ({ role: m.sender, text: m.content })),
+          clientChunks: effectiveChunks,
+          clientDocs: effectiveDocs,
         }),
       }).catch(() => null);
 
@@ -562,22 +582,24 @@ export default function App() {
         isSuccess = true;
       } else {
         // Fallback to client-side vector search across active chunks
-        const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, allChunks);
-        const hasGenuineChunks = clientRes.retrievedChunks.some(c => !isGibberishText(c.chunk.text) && c.chunk.text.trim().length > 30);
-        if (hasGenuineChunks && (clientRes.citations.length > 0 || clientRes.retrievedChunks.length > 0)) {
+        const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, effectiveChunks);
+        if (clientRes.retrievedChunks.length > 0 || clientRes.citations.length > 0 || effectiveChunks.length > 0) {
           finalAnswer = clientRes.answer;
           citations = clientRes.citations;
           retrievedChunks = clientRes.retrievedChunks;
           reasoningTimeMs = clientRes.reasoningTimeMs;
           isSuccess = true;
         } else if (!res) {
-          throw new Error('Unable to connect to the backend RAG server. If deployed on Render, verify your Web Service is running and check server logs.');
+          throw new Error('Unable to connect to the backend RAG server. Please verify your connection.');
         } else {
           const data = await res.json().catch(() => ({}));
           const rawErr = data?.error;
-          const msg = typeof rawErr === 'string'
+          let msg = typeof rawErr === 'string'
             ? rawErr
             : (rawErr?.message || (typeof data?.message === 'string' ? data.message : `RAG Query failed (HTTP ${res.status}).`));
+          if (msg.includes('A server error has occurred') || msg.includes('500')) {
+            msg = 'Server was busy or re-indexing. Please retry in a moment.';
+          }
           throw new Error(msg);
         }
       }
@@ -604,9 +626,9 @@ export default function App() {
       }
     } catch (err: any) {
       // If genuine local or active chunks exist, answer from them
-      const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, allChunks);
-      const hasRealChunks = clientRes.retrievedChunks.some(c => !isGibberishText(c.chunk.text) && c.chunk.text.trim().length > 30);
-      if (hasRealChunks && (clientRes.citations.length > 0 || clientRes.retrievedChunks.length > 0)) {
+      const effectiveChunks = allChunks.length > 0 ? allChunks : getClientStoredChunks();
+      const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, effectiveChunks);
+      if (clientRes.retrievedChunks.length > 0 || clientRes.citations.length > 0 || effectiveChunks.length > 0) {
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
           sender: 'assistant',
@@ -626,9 +648,12 @@ export default function App() {
         setSessions(updatedAfterBot);
       } else {
         const rawErr = err instanceof Error ? err.message : (typeof err === 'string' ? err : '');
-        const displayErr = (!rawErr || rawErr === '[object Object]')
+        let displayErr = (!rawErr || rawErr === '[object Object]')
           ? (err?.error?.message || err?.message || 'Unexpected response during vector retrieval. Please try again.')
           : rawErr;
+        if (displayErr.includes('A server error has occurred') || displayErr.includes('500')) {
+          displayErr = 'The server is warming up or re-indexing. Please retry your query in a few moments.';
+        }
         const errorMsg: ChatMessage = {
           id: `assistant-err-${Date.now()}`,
           sender: 'assistant',
