@@ -610,7 +610,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               return (
                 <div
                   key={d.id}
-                  className={`border px-2.5 py-1 rounded-xl text-[11px] font-semibold flex items-center space-x-1.5 shrink-0 shadow-xs transition-all hover:scale-105 ${
+                  className={`border px-2.5 py-1 rounded-xl text-[11px] font-semibold flex items-center space-x-1.5 shrink-0 shadow-xs transition-all ${
                     isJustUploaded
                       ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200 ring-2 ring-emerald-400/30'
                       : 'bg-white/10 border-white/15 text-white hover:bg-white/20'
@@ -622,6 +622,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <span className="bg-emerald-400 text-slate-950 text-[9px] font-extrabold px-1 rounded">
                       NEW ✓
                     </span>
+                  )}
+                  {onDeleteDoc && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        onDeleteDoc(d.id);
+                      }}
+                      className="ml-1 p-0.5 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-full cursor-pointer transition-colors"
+                      title={`Remove ${d.name}`}
+                      aria-label={`Remove ${d.name}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
               );

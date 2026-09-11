@@ -152,14 +152,21 @@ export default function App() {
       const uniqueClientDocs = clientDocs.filter((d) => !serverIds.has(d.id) && !serverNames.has(d.name));
       let docs: PDFDocument[] = [...serverDocs, ...uniqueClientDocs];
 
-      // Prune any stale resnet files
-      const staleDocs = docs.filter((d) => d.name?.toLowerCase().includes('resnet'));
+      // Aggressively prune any stale sample or resnet or AGI report documents
+      const isStale = (d: PDFDocument) =>
+        !d ||
+        d.id === 'sample-agi-10-page-report' ||
+        d.name?.toLowerCase().includes('agi') ||
+        d.name?.toLowerCase().includes('resnet') ||
+        Boolean(d.isSample);
+
+      const staleDocs = docs.filter(isStale);
       if (staleDocs.length > 0) {
         for (const s of staleDocs) {
           fetchApi(`/api/documents/${s.id}`, { method: 'DELETE' }).catch(() => {});
           deleteClientDocument(s.id);
         }
-        docs = docs.filter((d) => !d.name?.toLowerCase().includes('resnet'));
+        docs = docs.filter((d) => !isStale(d));
       }
 
       setDocuments(docs);
@@ -242,6 +249,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    deleteClientDocument('sample-agi-10-page-report');
     checkBackendHealth();
     fetchDocuments();
     fetchChunksForActiveDoc();
@@ -479,54 +487,14 @@ export default function App() {
 
   const handleDeleteDoc = async (docId: string) => {
     // Optimistically update UI so document pill disappears immediately
-    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    setDocuments((prev) => prev.filter((d) => d.id !== docId && !d.id.includes(docId) && !d.name?.toLowerCase().includes(docId.toLowerCase())));
     setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
     deleteClientDocument(docId);
-    if (activeDoc?.id === docId) {
-      setDocuments((currentDocs) => {
-        const remaining = currentDocs.filter((d) => d.id !== docId);
-        setActiveDoc(remaining.length > 0 ? remaining[0] : null);
-        return remaining;
-      });
-    }
+    setActiveDoc((prev) => (prev?.id === docId ? null : prev));
     try {
       await fetchApi(`/api/documents/${docId}`, { method: 'DELETE' }).catch(() => null);
     } catch (err) {
       console.error('Failed to delete doc:', err);
-    }
-  };
-
-  const handleLoadSampleDoc = async (sampleId: string = 'sample-agi-10-page-report') => {
-    setIsUploading(true);
-    setUploadingFileName('AGI_10_Page_Report.pdf');
-    try {
-      const res = await fetchApi(`/api/sample-documents/${sampleId}/load`, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.document) {
-          const newDoc: PDFDocument = data.document;
-          setDocuments((prev) => {
-            const filtered = prev.filter((d) => d.id !== newDoc.id);
-            return [newDoc, ...filtered];
-          });
-          setActiveDoc(newDoc);
-          setSelectedDocIds((prev) => Array.from(new Set([newDoc.id, ...prev])));
-          await fetchChunksForActiveDoc(newDoc.id);
-          setUploadSuccessNotice({
-            docName: newDoc.name,
-            chunkCount: newDoc.chunkCount,
-            fileSize: newDoc.fileSize,
-            fileType: newDoc.fileType || 'pdf',
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load sample document:', err);
-    } finally {
-      setIsUploading(false);
-      setUploadingFileName(null);
     }
   };
 

@@ -545,11 +545,22 @@ export function getClientStoredDocuments(): PDFDocument[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    // Filter out corrupted documents that have no readable text or only raw PDF object syntax
+    // Filter out corrupted documents that have no readable text or only raw PDF object syntax,
+    // and permanently purge any sample documents (such as sample-agi-10-page-report)
     const validChunks = getClientStoredChunks();
     const docIdsWithValidChunks = new Set(validChunks.map((c) => c.docId));
 
     const validDocs = parsed.filter((d: PDFDocument) => {
+      if (!d || !d.id || !d.name) return false;
+      // Permanently purge any sample/AGI/resnet documents
+      if (
+        d.id === 'sample-agi-10-page-report' ||
+        d.name.toLowerCase().includes('agi') ||
+        d.name.toLowerCase().includes('resnet') ||
+        d.isSample
+      ) {
+        return false;
+      }
       // If the doc was registered with chunks, ensure at least 1 clean chunk exists
       if (d.chunkCount > 0 && !docIdsWithValidChunks.has(d.id)) {
         return false;
@@ -568,7 +579,15 @@ export function getClientStoredDocuments(): PDFDocument[] {
 
 export function saveClientStoredDocuments(docs: PDFDocument[]): void {
   try {
-    localStorage.setItem(LOCAL_STORAGE_CLIENT_DOCS, JSON.stringify(docs));
+    const cleanDocs = docs.filter(
+      (d) =>
+        d &&
+        d.id !== 'sample-agi-10-page-report' &&
+        !d.name?.toLowerCase().includes('agi') &&
+        !d.name?.toLowerCase().includes('resnet') &&
+        !d.isSample
+    );
+    localStorage.setItem(LOCAL_STORAGE_CLIENT_DOCS, JSON.stringify(cleanDocs));
   } catch {
     // storage limit reached
   }
@@ -581,9 +600,18 @@ export function getClientStoredChunks(docId?: string): DocumentChunk[] {
     const parsed: DocumentChunk[] = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    // Automatically purge any corrupted chunks, raw PDF bytecode, or gibberish from client storage
+    // Automatically purge any sample chunks, corrupted chunks, raw PDF bytecode, or gibberish from client storage
     const validChunks = parsed.filter(
-      (c) => c && c.text && !isRawPdfSyntax(c.text) && !isGibberishText(c.text)
+      (c) =>
+        c &&
+        c.text &&
+        c.docId !== 'sample-agi-10-page-report' &&
+        !c.docName?.toLowerCase().includes('agi') &&
+        !c.docName?.toLowerCase().includes('resnet') &&
+        !c.text.includes('AGI-SPEC-2025-01') &&
+        !c.text.includes('Artificial General Intelligence (AGI)') &&
+        !isRawPdfSyntax(c.text) &&
+        !isGibberishText(c.text)
     );
     if (validChunks.length !== parsed.length) {
       try {

@@ -497,12 +497,19 @@ function loadStoreFromDisk() {
 
         // Aggressively purge any corrupted chunks or raw PDF bytecode
         const validChunks = data.chunks.filter(
-          (c: DocumentChunk) => c && c.text && !isRawPdfSyntax(c.text) && !isGibberishText(c.text)
+          (c: DocumentChunk) =>
+            c &&
+            c.text &&
+            c.docId !== 'sample-agi-10-page-report' &&
+            !c.docName?.toLowerCase().includes('agi') &&
+            !c.docName?.toLowerCase().includes('resnet') &&
+            !isRawPdfSyntax(c.text) &&
+            !isGibberishText(c.text)
         );
         const validDocIdsWithChunks = new Set(validChunks.map((c: DocumentChunk) => c.docId));
 
         const validDocs = data.documents.filter((d: PDFDocument) => {
-          if (d.name?.toLowerCase().includes('resnet')) return false;
+          if (d.id === 'sample-agi-10-page-report' || d.name?.toLowerCase().includes('agi') || d.name?.toLowerCase().includes('resnet')) return false;
           if (d.chunkCount > 0 && !validDocIdsWithChunks.has(d.id)) return false;
           return true;
         });
