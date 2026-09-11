@@ -949,7 +949,6 @@ export default function App() {
                   onAbortUpload={handleAbortUpload}
                   onDeleteDoc={handleDeleteDoc}
                   onToggleDocSelection={handleToggleDocSelection}
-                  onLoadSampleDoc={handleLoadSampleDoc}
                 />
               </div>
 

@@ -158,7 +158,6 @@ interface ChatInterfaceProps {
   onSelectSession?: (session: ChatSession) => void;
   preciseOutput?: boolean;
   onTogglePreciseOutput?: () => void;
-  onLoadSampleDoc?: (sampleId?: string) => void;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -190,7 +189,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onSelectSession,
   preciseOutput,
   onTogglePreciseOutput,
-  onLoadSampleDoc,
 }) => {
   const [internalPreciseOutput, setInternalPreciseOutput] = useState(false);
   const isPrecise = preciseOutput !== undefined ? preciseOutput : (settings?.preciseOutput ?? internalPreciseOutput);

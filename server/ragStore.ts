@@ -517,10 +517,7 @@ function loadStoreFromDisk() {
     console.warn("Failed to load RAG store from disk:", err);
   }
 
-  // If store is empty, automatically seed the 10-page AGI Report
-  if (documentsStore.length === 0) {
-    seedSampleDocument("sample-agi-10-page-report");
-  }
+  // Store is clean and ready for user uploads
 }
 
 // Initial load
