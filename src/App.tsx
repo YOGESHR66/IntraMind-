@@ -162,23 +162,6 @@ export default function App() {
         docs = docs.filter((d) => !d.name?.toLowerCase().includes('resnet'));
       }
 
-      // If no documents exist in workspace, auto-load AGI 10-page report so workspace is immediately ready for interviews
-      if (docs.length === 0) {
-        try {
-          const loadRes = await fetchApi('/api/sample-documents/sample-agi-10-page-report/load', {
-            method: 'POST',
-          });
-          if (loadRes.ok) {
-            const data = await loadRes.json();
-            if (data?.document) {
-              docs = [data.document];
-            }
-          }
-        } catch {
-          // ignore
-        }
-      }
-
       setDocuments(docs);
 
       // If we have client-stored chunks, sync them to backend so the server vector store is hot
@@ -496,18 +479,18 @@ export default function App() {
 
   const handleDeleteDoc = async (docId: string) => {
     // Optimistically update UI so document pill disappears immediately
-    setDocuments(prev => prev.filter(d => d.id !== docId));
-    setSelectedDocIds(prev => prev.filter(id => id !== docId));
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
     deleteClientDocument(docId);
     if (activeDoc?.id === docId) {
-      const remaining = documents.filter(d => d.id !== docId);
-      setActiveDoc(remaining.length > 0 ? remaining[0] : null);
+      setDocuments((currentDocs) => {
+        const remaining = currentDocs.filter((d) => d.id !== docId);
+        setActiveDoc(remaining.length > 0 ? remaining[0] : null);
+        return remaining;
+      });
     }
     try {
-      const res = await fetchApi(`/api/documents/${docId}`, { method: 'DELETE' }).catch(() => null);
-      if (res && res.ok) {
-        await fetchDocuments();
-      }
+      await fetchApi(`/api/documents/${docId}`, { method: 'DELETE' }).catch(() => null);
     } catch (err) {
       console.error('Failed to delete doc:', err);
     }

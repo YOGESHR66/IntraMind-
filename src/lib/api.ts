@@ -1,5 +1,5 @@
 import { UploadProgressState, PDFDocument } from '../types';
-import { clientIndexDocument } from './clientRAG';
+import { clientIndexDocument, saveClientStoredChunks } from './clientRAG';
 
 function cloneBody(body: any): any {
   if (body instanceof FormData) {
