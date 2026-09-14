@@ -193,14 +193,9 @@ export function isRawPdfSyntax(text: string): boolean {
 export async function extractTextInBrowser(file: File): Promise<{ text: string; pageCount: number }> {
   const fileName = file.name.toLowerCase();
 
-  // 0. Match against known benchmark and sample reports (e.g. AGI_10_Page_Report.pdf)
+  // 0. Match only exact sample benchmark names if specifically provided
   const matchedSample = SAMPLE_DOCUMENTS.find(
-    (s) =>
-      s.name.toLowerCase() === fileName ||
-      s.id.toLowerCase() === fileName ||
-      (fileName.includes('agi') && s.id.includes('agi')) ||
-      (fileName.includes('techcorp') && s.id.includes('techcorp')) ||
-      (fileName.includes('quantum') && s.id.includes('quantum'))
+    (s) => s.id !== 'sample-agi-10-page-report' && (s.name.toLowerCase() === fileName || s.id.toLowerCase() === fileName)
   );
   if (matchedSample) {
     const fullText = matchedSample.pages.map((p) => p.text).join('\n\n');
