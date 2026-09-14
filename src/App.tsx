@@ -152,13 +152,10 @@ export default function App() {
       const uniqueClientDocs = clientDocs.filter((d) => !serverIds.has(d.id) && !serverNames.has(d.name));
       let docs: PDFDocument[] = [...serverDocs, ...uniqueClientDocs];
 
-      // Aggressively prune any stale sample or resnet or AGI report documents
+      // Prune only the preloaded mock sample document
       const isStale = (d: PDFDocument) =>
         !d ||
-        d.id === 'sample-agi-10-page-report' ||
-        d.name?.toLowerCase().includes('agi') ||
-        d.name?.toLowerCase().includes('resnet') ||
-        Boolean(d.isSample);
+        (d.id === 'sample-agi-10-page-report' && Boolean(d.isSample));
 
       const staleDocs = docs.filter(isStale);
       if (staleDocs.length > 0) {
@@ -325,21 +322,10 @@ export default function App() {
       uploadAbortControllerRef.current = null;
     }
     setIsUploading(false);
-    setUploadProgress((prev) =>
-      prev
-        ? {
-            ...prev,
-            stage: 'aborted',
-            percent: 0,
-            detail: 'Upload and indexing was cancelled by user.',
-            isAborting: false,
-          }
-        : null
-    );
-    setTimeout(() => {
-      setUploadProgress(null);
-      setUploadingFileName(null);
-    }, 2500);
+    setUploadProgress(null);
+    setUploadingFileName(null);
+    setUploadError(null);
+    setLastFailedFile(null);
   };
 
   const handleUploadFile = async (file: File) => {
@@ -911,6 +897,10 @@ export default function App() {
                   onDismissUploadNotice={() => {
                     setUploadSuccessNotice(null);
                     setUploadError(null);
+                    setUploadProgress(null);
+                    setUploadingFileName(null);
+                    setLastFailedFile(null);
+                    setIsUploading(false);
                   }}
                   lastUploadedDocId={lastUploadedDocId}
                   uploadProgress={uploadProgress}
