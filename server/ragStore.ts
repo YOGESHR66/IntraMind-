@@ -6,6 +6,7 @@ import path from "path";
 import zlib from "zlib";
 import { DocumentChunk, PDFDocument, SearchResult, Citation, RAGSettings } from "../src/types";
 import { SAMPLE_DOCUMENTS } from "./sampleDocs";
+import { synthesizeDocumentAnswer, cleanAnswerText } from "../src/lib/ragSynthesis";
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -1010,6 +1011,13 @@ export function formatRAGAnswer(rawAnswer: string, query: string, isPrecise: boo
 
   // 1. Remove all bracket citation numbers like [1], [4], [1, 4], [1, 2, 3] from the answer text
   text = text.replace(/\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, '');
+  // Strip parenthetical sources and page number references
+  text = text.replace(/\s*\(\s*(?:source\s*:|ref\s*:)[^)]*\)/gi, '');
+  text = text.replace(/\s*\(\s*Page\s*\d+(?:\s*(?:of|—|-)\s*\d+)?\s*\)/gi, '');
+  text = text.replace(/\s*—\s*Page\s*\d+\b/gi, '');
+  text = text.replace(/\s*\*\(Source:[^)]*\)\*/gi, '');
+  text = text.replace(/\s*\*Source:[^*]*\*/gi, '');
+  text = text.replace(/\s*\*Verified across \d+ passage\(s\)[^*]*\*/gi, '');
   // Clean up any extra spacing before punctuation created by removing citation numbers
   text = text.replace(/\s+([.,;:!?])/g, '$1');
 
@@ -1107,24 +1115,27 @@ MANDATORY RULES:
 3. Each bullet point MUST be a fluid, complete, well-formed sentence (never fragmented across sub-bullets or lines).
 4. Separate each bullet point from the next with a blank line.
 5. DO NOT output any bracket citation numbers like [1], [4], [1, 4], or [2] anywhere in the solution text. Keep the solution text completely free of bracket citation numbers.
-6. Begin immediately with a clear markdown heading (e.g. ### 🎯 <Topic>), followed directly by the bullet points.
-7. NEVER output long paragraphs, introductory pleasantries (e.g. "Here are the points:"), or concluding summaries.
-8. NEVER include phrases like "Based on the provided documents", "According to the context", or "From the documents".
-9. Base the response ONLY on the provided context excerpts.`
+6. ABSOLUTELY DO NOT include parenthetical source references, document names, or page numbers (e.g. "(Source: file.pdf — Page 1)" or "(Page 1)") anywhere in the response text. The user wants the substantive answer inside the PDF, not the location or page number of the answer.
+7. Begin immediately with a clear markdown heading (e.g. ### 🎯 <Topic>), followed directly by the bullet points.
+8. NEVER output long paragraphs, introductory pleasantries (e.g. "Here are the points:"), or concluding summaries.
+9. NEVER include phrases like "Based on the provided documents", "According to the context", or "From the documents".
+10. Base the response ONLY on the provided context excerpts.`
     : `You are IntraMind RAG, an accurate, trustworthy enterprise document AI assistant.
-Answer the user's question accurately, clearly, and in a clean structured format using ONLY the provided Source context excerpts below.
+Answer the user's question accurately, clearly, and comprehensively in a clean structured format using the provided Source context excerpts below.
+Provide the substantive answer, definition, and summary directly from inside the PDF.
 
 CRITICAL FORMATTING RULES:
 1. DO NOT output bracket citation numbers like [1], [4], [1, 4] in the response text. Keep the solution text completely free of bracket numbers.
-2. Structure information with:
+2. ABSOLUTELY DO NOT include parenthetical source references, document names, or page numbers (e.g. "(Source: doc.pdf — Page 1)" or "(Page 1)") anywhere in the text body. The user wants the actual answers and explanations from inside the PDF, not the location or page number of the answer.
+3. Structure information with:
    - Clear emoji heading (e.g. ### 🤖 <Topic>).
-   - Clear subheadings and numbered sections when explaining phases or categories.
+   - Clear subheadings and numbered sections when explaining phases, attributes, or categories.
    - Distinctive bullet points using • on separate lines.
    - Clean Markdown Tables (| Column 1 | Column 2 |) for structured comparisons or parameters.
-3. Put the answer directly underneath the heading.
-4. NEVER start with or include phrases like "Based on the provided documents", "According to the provided documents", "Based on the context", or "From the documents".
-5. If this is a follow-up question, answer specifically in the context of the previous discussion and matching document excerpts.
-6. Do NOT make up facts or extrapolate beyond the provided sources.`;
+4. Put the answer directly underneath the heading.
+5. NEVER start with or include phrases like "Based on the provided documents", "According to the provided documents", "Based on the context", or "From the documents".
+6. If this is a follow-up question, answer specifically in the context of the previous discussion and matching document excerpts.
+7. Do NOT make up facts or extrapolate beyond the provided sources.`;
 
   // Format recent conversation history
   let conversationHistoryText = "";
@@ -1155,12 +1166,14 @@ ${
 2. Each bullet MUST be a full, fluid, unbroken sentence starting with "• ".
 3. Separate each bullet from the next with a blank line.
 4. ABSOLUTELY DO NOT include bracket citation numbers like [1, 4] or [1] in the text.
-5. DO NOT output any graphical diagrams, Mermaid diagrams, or flowchart code blocks.
-6. NEVER write "Based on the provided documents", "According to the documents", or any similar phrase.`
-    : `1. Structure the response cleanly with an emoji topic heading (e.g. ### 🤖 <Topic> or ### 📌 <Topic>), numbered sections, bullet points with •, and Markdown tables (| Item | Details |) for algorithms, methods, or comparative data.
+5. ABSOLUTELY DO NOT include page numbers or parenthetical source references like "(Source: ... — Page X)" in the text.
+6. DO NOT output any graphical diagrams, Mermaid diagrams, or flowchart code blocks.
+7. NEVER write "Based on the provided documents", "According to the documents", or any similar phrase.`
+    : `1. Structure the response cleanly with an emoji topic heading (e.g. ### 🤖 <Topic> or ### 📌 <Topic>), subheadings, bullet points with •, and Markdown tables (| Item | Details |) for algorithms, methods, or comparative data.
 2. DO NOT output any graphical diagrams, Mermaid diagrams, or flowchart code blocks.
 3. DO NOT include bracket citation numbers like [1, 4] or [1] in the text.
-4. NEVER write "Based on the provided documents", "According to the documents", or any similar phrase.`
+4. ABSOLUTELY DO NOT include page numbers or parenthetical source references like "(Source: ... — Page X)" or "(Page 1)" in the answer body. Give the actual explanation and summary from inside the PDF.
+5. NEVER write "Based on the provided documents", "According to the documents", or any similar phrase.`
 }`;
 
   // Step 3: Generate Response with Gemini
@@ -1180,47 +1193,27 @@ ${
       answerText = response.text || "No response generated.";
     } catch (err: any) {
       console.warn("External Gemini API call error, applying local grounded synthesis fallback:", err);
-      // Clean fallback: synthesize answer directly from verified source chunks
+      // Clean fallback: synthesize rich answer directly from verified source chunks without page numbers
       if (searchResults.length > 0) {
-        if (isPrecise) {
-          const topChunks = searchResults.slice(0, 3);
-          const bulletPoints = topChunks.map((r) => {
-            const firstSentence = r.chunk.text.split(/(?<=[.?!])\s+/)[0]?.trim() || r.chunk.text.slice(0, 140);
-            return `• ${firstSentence}`;
-          }).slice(0, 3).join("\n\n");
-          answerText = `### 🎯 ${query}\n\n${bulletPoints}`;
-        } else {
-          const topChunks = searchResults.slice(0, 4);
-          const insights = topChunks.map((r, i) => {
-            const passage = r.chunk.text.replace(/\s+/g, " ").trim();
-            const cleanSnippet = passage.length > 300 ? passage.slice(0, 300) + "..." : passage;
-            return `🔹 **${r.chunk.docName}** (Page ${r.chunk.pageNumber}, **${r.scorePercentage}% match**):\n> "${cleanSnippet}"`;
-          }).join("\n\n");
-          answerText = `### 📌 ${query}\n\nHere are the core verified facts retrieved directly from your indexed documents:\n\n${insights}\n\n*(Note: Synthesized directly from verified document passages while external AI services recover from high demand).*`;
-        }
+        answerText = synthesizeDocumentAnswer({
+          query,
+          relevantChunks: searchResults,
+          allDocChunks: searchResults.map(r => r.chunk),
+          isPrecise,
+        });
       } else {
         answerText = `### 📌 ${query}\n\nNo direct passages matched your search query in the current document library. Try rephrasing your search terms or lowering the similarity threshold in settings.`;
       }
     }
   } else {
-    // Fallback if no GEMINI_API_KEY provided in deployment environment
-    const topChunks = searchResults.slice(0, 4);
-    const passagesText = topChunks.map((r, i) => {
-      const passageNum = i + 1;
-      return `**Source [${passageNum}]: ${r.chunk.docName} (Page ${r.chunk.pageNumber}, ${r.scorePercentage}% relevance)**\n> ${r.chunk.text.trim()}`;
-    }).join("\n\n");
-
-    answerText = `### ⚠️ Notice: GEMINI_API_KEY Missing on Deployment\n\n` +
-      `Your query **"${query}"** successfully matched **${searchResults.length} relevant passage(s)** in your uploaded document, but the **GEMINI_API_KEY** environment variable has not been set in your production deployment.\n\n` +
-      `Without an API key, the system cannot generate an AI-synthesized answer with Gemini.\n\n` +
-      `**How to fix this in Render:**\n` +
-      `1. Open your Render Dashboard → Select your Web Service\n` +
-      `2. Click the **Environment** tab in the left sidebar\n` +
-      `3. Click **Add Environment Variable**\n` +
-      `4. Set Key to **\`GEMINI_API_KEY\`** and Value to your Gemini API key\n` +
-      `5. Save changes (Render will automatically redeploy with AI synthesis enabled)\n\n` +
-      `---\n\n` +
-      `### 📄 Grounded Document Passages Found:\n\n${passagesText}`;
+    // Fallback if no GEMINI_API_KEY provided in deployment environment:
+    // Synthesize the actual answer directly from the document content without citations or page numbers in text
+    answerText = synthesizeDocumentAnswer({
+      query,
+      relevantChunks: searchResults,
+      allDocChunks: searchResults.map(r => r.chunk),
+      isPrecise,
+    });
   }
 
   // Step 4: Extract Citations (captures single [1] and multi-bracket citations like [1, 4] before text sanitization)

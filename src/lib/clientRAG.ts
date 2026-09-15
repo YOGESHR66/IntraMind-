@@ -1,6 +1,7 @@
 import { DocumentChunk, PDFDocument, Citation, SearchResult, UploadProgressState } from '../types';
 import { SAMPLE_DOCUMENTS } from '../data/sampleDocs';
 import { fetchApi } from './api';
+import { synthesizeDocumentAnswer, cleanAnswerText } from './ragSynthesis';
 
 // In-memory embedding cache for client-side vectors
 const clientEmbeddingCache = new Map<string, number[]>();
@@ -733,7 +734,8 @@ export function clientQueryRAG(
   selectedDocIds: string[] = [],
   topK: number = 4,
   similarityThreshold: number = 0.08,
-  providedChunks?: DocumentChunk[]
+  providedChunks?: DocumentChunk[],
+  isPrecise: boolean = false
 ): {
   answer: string;
   citations: Citation[];
@@ -798,7 +800,7 @@ export function clientQueryRAG(
     };
   }
 
-  // Build citations
+  // Build citations metadata for interactive overlays and source drawer
   const citations: Citation[] = relevant.map((item, idx) => ({
     sourceId: idx + 1,
     chunkId: item.chunk.id,
@@ -810,85 +812,19 @@ export function clientQueryRAG(
     similarity: Number(item.similarity.toFixed(3)),
   }));
 
-  // Clean, structured synthesis without raw bracket numbers, hanging numbers, or broken markdown
-  const cleanTitle = query.trim().replace(/[?.:!]+$/, '').trim();
-  const titleHeading = cleanTitle.length > 0
-    ? cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1)
-    : 'Document Findings';
-
-  const queryWords = query.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-
-  // Helper to clean chunk text of raw markdown artifacts and table delimiters
-  const cleanSnippet = (text: string): string => {
-    return text
-      .replace(/^#+\s+[^\n]+/gm, '')
-      .replace(/\|\s*[-:]+\s*\|.*$/gm, '')
-      .replace(/^\s*\d+[.)]\s+/gm, '')
-      .replace(/^\s*[-*•]\s+/gm, '')
-      .replace(/\|\s*/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
-
-  const extractedPoints: { text: string; docName: string; page: number }[] = [];
-
-  for (const item of relevant) {
-    const clean = cleanSnippet(item.chunk.text);
-    const sentences = clean
-      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
-      .map(s => s.trim())
-      .filter(s => s.length >= 25 && !s.startsWith('|') && !s.includes('```'));
-
-    const scored = sentences.map(s => {
-      let score = 0;
-      const sLower = s.toLowerCase();
-      for (const w of queryWords) {
-        if (sLower.includes(w)) score += 2;
-      }
-      return { text: s, score };
-    });
-
-    scored.sort((a, b) => b.score - a.score);
-
-    for (const sc of scored.slice(0, 2)) {
-      if (sc.text) {
-        let sent = sc.text.trim();
-        if (!/[.!?]$/.test(sent)) sent += '.';
-        extractedPoints.push({
-          text: sent,
-          docName: item.chunk.docName,
-          page: item.chunk.pageNumber,
-        });
-      }
-    }
-  }
-
-  // Deduplicate
-  const uniquePoints: typeof extractedPoints = [];
-  const seenTexts = new Set<string>();
-  for (const pt of extractedPoints) {
-    const key = pt.text.slice(0, 50).toLowerCase();
-    if (!seenTexts.has(key)) {
-      seenTexts.add(key);
-      uniquePoints.push(pt);
-    }
-    if (uniquePoints.length >= 4) break;
-  }
-
-  let answer = '';
-  if (uniquePoints.length > 0) {
-    const bulletList = uniquePoints.map(p => {
-      return `• ${p.text}\n  *(Source: ${p.docName} — Page ${p.page})*`;
-    }).join('\n\n');
-    answer = `### 🎯 ${titleHeading}\n\nHere are the core verified facts retrieved from your active documents:\n\n${bulletList}\n\n*Verified across ${relevant.length} passage(s) with grounded citations.*`;
-  } else {
-    const topChunk = relevant[0]?.chunk;
-    const fallbackText = cleanSnippet(topChunk?.text || '').slice(0, 280);
-    answer = `### 🎯 ${titleHeading}\n\n${fallbackText}...\n\n*Source: ${topChunk?.docName || 'Document'} — Page ${topChunk?.pageNumber || 1}*`;
-  }
+  // Synthesize a substantive, direct answer and summary from the document content.
+  // The answer text itself contains NO page numbers or "(Source: ...)" location strings.
+  const docNames = Array.from(new Set(relevant.map((r) => r.chunk.docName)));
+  const synthesizedAnswer = synthesizeDocumentAnswer({
+    query,
+    relevantChunks: relevant,
+    allDocChunks: allChunks,
+    isPrecise,
+    docNames,
+  });
 
   return {
-    answer,
+    answer: synthesizedAnswer,
     citations,
     retrievedChunks: relevant,
     reasoningTimeMs: Date.now() - startTime,

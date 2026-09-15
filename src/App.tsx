@@ -620,7 +620,8 @@ export default function App() {
           targetDocIds,
           ragSettings.topK,
           ragSettings.similarityThreshold,
-          effectiveChunks
+          effectiveChunks,
+          ragSettings.preciseOutput
         );
         if (clientRes.retrievedChunks.length > 0 || clientRes.citations.length > 0 || effectiveChunks.length > 0) {
           finalAnswer = clientRes.answer;
@@ -666,7 +667,14 @@ export default function App() {
     } catch (err: any) {
       // If genuine local or active chunks exist, answer from them
       const effectiveChunks = allChunks.length > 0 ? allChunks : getClientStoredChunks();
-      const clientRes = clientQueryRAG(query, selectedDocIds, ragSettings.topK, ragSettings.similarityThreshold, effectiveChunks);
+      const clientRes = clientQueryRAG(
+        query,
+        selectedDocIds,
+        ragSettings.topK,
+        ragSettings.similarityThreshold,
+        effectiveChunks,
+        ragSettings.preciseOutput
+      );
       if (clientRes.retrievedChunks.length > 0 || clientRes.citations.length > 0 || effectiveChunks.length > 0) {
         const assistantMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
