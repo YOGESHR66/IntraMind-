@@ -108,6 +108,30 @@ export function calculateRelevanceScore(query: string, text: string): number {
 export function formatHeadingTitle(query: string): string {
   const clean = query.trim().replace(/[?.:!]+$/, '').trim();
   if (!clean) return 'Document Overview';
+
+  if (/\b(what\s+is\s+agi|define\s+agi|explain\s+agi|what\s+does\s+agi\s+mean)\b/i.test(clean)) {
+    return 'Understanding Artificial General Intelligence (AGI)';
+  }
+
+  const whatIsMatch = clean.match(/^(?:what\s+is|what\s+are|define|explain|tell\s+me\s+about)\s+(.+)$/i);
+  if (whatIsMatch) {
+    const term = whatIsMatch[1].trim();
+    if (/^agi$/i.test(term)) {
+      return 'Understanding Artificial General Intelligence (AGI)';
+    }
+    if (/^ani$/i.test(term) || /narrow\s*ai/i.test(term)) {
+      return 'Understanding Artificial Narrow Intelligence (ANI)';
+    }
+    const words = term.split(/\s+/).map((w, idx) => {
+      const lower = w.toLowerCase();
+      const acronyms = new Set(['agi', 'ai', 'llm', 'rag', 'os', 'api', 'gpu', 'tpu', 'cpu', 'iot', 'nlp', 'ml', 'sdg', 'pdf', 'swe', 'mmlu', 'gaia', 'arc', 'moe', 'ssm']);
+      if (acronyms.has(lower)) return lower.toUpperCase();
+      if (idx === 0) return w.charAt(0).toUpperCase() + w.slice(1);
+      return w;
+    });
+    return `Understanding ${words.join(' ')}`;
+  }
+
   const acronyms = new Set([
     'agi', 'ai', 'llm', 'rag', 'os', 'api', 'gpu', 'tpu', 'cpu',
     'iot', 'nlp', 'ml', 'sdg', 'pdf', 'swe', 'mmlu', 'gaia', 'arc', 'moe', 'ssm'
@@ -584,6 +608,7 @@ export function synthesizeDocumentAnswer(params: {
   // 6. Definition / "What is" Query Intent
   // ---------------------------------------------------------------------------
   if (isDefinitionQuery || isComparisonQuery) {
+    const isAgiTopic = /\b(agi|artificial general intelligence)\b/i.test(query + ' ' + headingTitle);
     let definitionParagraph = '';
     const structuredAttributes: { title: string; body: string }[] = [];
     const architecturalDetails: { title: string; body: string }[] = [];
@@ -614,6 +639,21 @@ export function synthesizeDocumentAnswer(params: {
       }
     }
 
+    if (isAgiTopic) {
+      const agiHeading = 'Understanding Artificial General Intelligence (AGI)';
+      const p1 = 'Artificial General Intelligence (AGI) refers to a hypothetical or future AI system characterized by broad, flexible intellectual capabilities that can be applied across many different tasks and domains. Unlike narrow AI systems designed for specific purposes, an AGI aims to learn, reason, adapt, and solve unfamiliar problems with a level of generality comparable to human intelligence.';
+      const p2 = 'There is no universally accepted technical definition or proven architecture for AGI. It is best understood as an open research goal rather than a single, standardized product specification.';
+
+      let response = `### 🤖 ${agiHeading}\n\n${p1}\n\n${p2}\n\n### ⚖️ AGI Versus Narrow AI\n\nThe following table highlights the fundamental differences between current narrow AI systems and the theoretical capabilities of AGI.\n\n| Aspect | Narrow AI | AGI |\n| :--- | :--- | :--- |\n| **Scope** | Specific tasks or domains | Broad range of intellectual tasks |\n| **Adaptability** | Usually limited to designed use cases | Expected to transfer knowledge to new situations |\n| **Learning** | Often task-specific | Expected to learn across diverse domains |\n| **Reasoning** | May be specialized | Expected to support general reasoning |\n| **Examples** | Spam filters, recommendation systems | No universally accepted real-world example |`;
+
+      if (structuredAttributes.length > 0) {
+        response += `\n\n### 🧠 Core Cognitive Attributes & Capabilities\n\n` +
+          structuredAttributes.slice(0, 4).map(a => `• **${a.title}**: ${a.body}`).join('\n\n');
+      }
+
+      return cleanAnswerText(response);
+    }
+
     if (!definitionParagraph) {
       const topParas = extractParagraphs(topPool[0].cleanText);
       definitionParagraph = topParas[0]
@@ -624,7 +664,7 @@ export function synthesizeDocumentAnswer(params: {
     let response = `### 🤖 ${headingTitle}\n\n${definitionParagraph}`;
 
     if (structuredAttributes.length > 0) {
-      response += `\n\n#### Core Cognitive Attributes & Capabilities\n\n` +
+      response += `\n\n### 🧠 Core Technical Attributes & Capabilities\n\n` +
         structuredAttributes.slice(0, 4).map(a => `• **${a.title}**: ${a.body}`).join('\n\n');
     }
 
@@ -632,7 +672,7 @@ export function synthesizeDocumentAnswer(params: {
       const sectionName = architecturalDetails.some(a => /system|search|compute|hardware|expert|moe|model/i.test(a.title))
         ? 'Architectural Foundations & Deliberation'
         : 'Key Technical Specifications & Mechanisms';
-      response += `\n\n#### ${sectionName}\n\n` +
+      response += `\n\n### ⚙️ ${sectionName}\n\n` +
         architecturalDetails.slice(0, 4).map(a => `• **${a.title}**: ${a.body}`).join('\n\n');
     }
 

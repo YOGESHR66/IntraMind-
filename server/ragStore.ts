@@ -48,13 +48,13 @@ async function callGeminiWithFallback(
     timeoutMs?: number;
   }
 ) {
-  // Use gemini-3.1-flash-lite as primary high-availability model (instant, lowest queue latency),
-  // Prioritize fast, high-availability models: gemini-3.1-flash-lite followed by gemini-flash-latest
-  const preferred = params.preferredModel || 'gemini-3.1-flash-lite';
+  // Use gemini-3.8-flash as primary model for high quality and speed, followed by flash fallbacks
+  const preferred = params.preferredModel || 'gemini-3.8-flash';
   const modelsToTry = [
     preferred,
-    'gemini-3.1-flash-lite',
+    'gemini-3.8-flash',
     'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
     'gemini-3.1-pro-preview',
   ];
 
@@ -1183,7 +1183,7 @@ ${
   if (ai) {
     try {
       const response = await callGeminiWithFallback(ai, {
-        preferredModel: "gemini-3.1-flash-lite",
+        preferredModel: "gemini-3.8-flash",
         contents: prompt,
         config: {
           systemInstruction,
