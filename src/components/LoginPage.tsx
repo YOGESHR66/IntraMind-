@@ -202,13 +202,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
             <br className="hidden sm:inline" /> Document Intelligence Engine
           </p>
 
-          {/* CTA: "Launch RAG Workspace" button */}
+          {/* CTA: Launch Workspace button */}
           <button
+            id="launch-workspace-button"
             type="button"
             onClick={onEnterApp}
             className="px-8 py-4 mt-7 rounded-full text-base font-semibold cursor-pointer shadow-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 hover:from-indigo-400 hover:via-purple-500 hover:to-indigo-500 text-white border border-white/30 hover:shadow-indigo-500/50 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 group"
+            title="Launch IntraMind RAG Workspace"
           >
-            <span>Launch RAG Workspace</span>
+            <span>Launch Workspace</span>
             <ArrowRight className="w-5 h-5 text-white/90 group-hover:translate-x-1 transition-transform" />
           </button>
         </main>

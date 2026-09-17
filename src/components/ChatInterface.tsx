@@ -292,7 +292,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     retrievedChunk?: SearchResult;
     userQuery?: string;
   } | null>(null);
-  const [highlightCitationsMode, setHighlightCitationsMode] = useState<boolean>(true);
+  const [highlightCitationsMode, setHighlightCitationsMode] = useState<boolean>(false);
 
   const handleTriggerCitationOverlay = useCallback(
     (citation: Citation, msg?: ChatMessage) => {

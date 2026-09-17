@@ -34,17 +34,16 @@ import {
 export default function App() {
   const [viewMode, setViewMode] = useState<'login' | 'app'>(() => {
     try {
-      const saved = localStorage.getItem('intramind_view_mode');
-      if (saved === 'login' || saved === 'app') return saved;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'app' || params.get('view') === 'workspace') {
+        return 'app';
+      }
     } catch {}
-    return 'app';
+    return 'login';
   });
 
   const handleSetViewMode = (mode: 'login' | 'app') => {
     setViewMode(mode);
-    try {
-      localStorage.setItem('intramind_view_mode', mode);
-    } catch {}
   };
 
   const [isLoginOpen, setIsLoginOpen] = useState(false);
