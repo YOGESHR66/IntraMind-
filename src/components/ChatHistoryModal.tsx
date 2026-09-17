@@ -106,16 +106,16 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
   return (
     <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
       <div
-        className={`w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border transition-colors ${
+        className={`w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border-2 transition-colors ${
           theme === 'dark'
             ? 'bg-neutral-950 border-neutral-800 text-slate-100 shadow-black/80'
-            : 'bg-white border-slate-200 text-slate-900 shadow-xl'
+            : 'bg-[#edf7f0] border-emerald-300/90 text-slate-800 shadow-xl'
         }`}
       >
         {/* Header */}
         <div
-          className={`p-4 sm:p-5 flex items-center justify-between border-b ${
-            theme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-slate-200 bg-slate-50'
+          className={`p-4 sm:p-5 flex items-center justify-between border-b-2 ${
+            theme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-emerald-300 bg-[#dcf0e2]'
           }`}
         >
           <div className="flex items-center space-x-2.5">
@@ -147,7 +147,7 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
                 onNewChat();
                 onClose();
               }}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/20 active:scale-95"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/20 active:scale-95 border border-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New Chat</span>
@@ -155,8 +155,8 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
 
             <button
               onClick={onClose}
-              className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
-                theme === 'dark' ? 'hover:bg-white/10 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'
+              className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
+                theme === 'dark' ? 'hover:bg-white/10 text-slate-400 hover:text-white border-neutral-750' : 'hover:bg-slate-200 text-slate-600 hover:text-slate-900 border-slate-300'
               }`}
               title="Close"
             >
@@ -166,11 +166,11 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
         </div>
 
         {/* Search & Actions Bar */}
-        <div className={`p-3 sm:px-5 sm:py-3 border-b flex items-center gap-2.5 ${
-          theme === 'dark' ? 'border-white/10 bg-[#121318]' : 'border-slate-200 bg-white'
+        <div className={`p-3 sm:px-5 sm:py-3 border-b-2 flex items-center gap-2.5 ${
+          theme === 'dark' ? 'border-neutral-800 bg-[#121318]' : 'border-emerald-300 bg-[#e2f3e7]'
         }`}>
-          <div className={`flex items-center gap-2 flex-1 px-3 py-1.5 rounded-xl border text-xs ${
-            theme === 'dark' ? 'bg-white/5 border-white/10 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-800'
+          <div className={`flex items-center gap-2 flex-1 px-3 py-1.5 rounded-xl border-2 text-xs ${
+            theme === 'dark' ? 'bg-white/5 border-neutral-750 text-slate-200' : 'bg-white border-emerald-300 text-slate-800'
           }`}>
             <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <input
@@ -232,7 +232,7 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
           {filteredSessions.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${
-                theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500'
+                theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-[#e2e7ec] text-slate-500'
               }`}>
                 <MessageSquare className="w-6 h-6" />
               </div>
@@ -273,14 +273,14 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
                       onClose();
                     }
                   }}
-                  className={`group relative p-3 sm:p-4 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  className={`group relative p-3 sm:p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                     isActive
                       ? theme === 'dark'
-                        ? 'bg-indigo-950/40 border-indigo-500/50 ring-1 ring-indigo-500/30'
-                        : 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-200'
+                        ? 'bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/30'
+                        : 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-300/40'
                       : theme === 'dark'
-                        ? 'bg-[#181a22] hover:bg-[#1f222d] border-white/5 hover:border-white/15'
-                        : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 shadow-xs'
+                        ? 'bg-[#181a22] hover:bg-[#1f222d] border-neutral-800 hover:border-neutral-700'
+                        : 'bg-white hover:bg-[#eaf5ed] border-emerald-300/80 hover:border-emerald-400 text-slate-800 shadow-xs'
                   }`}
                 >
                   <div className="flex-1 min-w-0 pr-2">
@@ -323,7 +323,7 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
                           className={`px-2 py-1 text-xs font-bold rounded border focus:outline-none w-full max-w-xs ${
                             theme === 'dark'
                               ? 'bg-slate-900 border-indigo-500 text-white'
-                              : 'bg-white border-indigo-500 text-slate-900'
+                              : 'bg-[#f8f9fb] border-indigo-500 text-slate-800'
                           }`}
                         />
                         <button
@@ -342,7 +342,7 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <h4 className="font-bold text-xs sm:text-sm truncate text-slate-900 dark:text-white flex items-center gap-2 group-hover:text-indigo-400 transition-colors">
+                      <h4 className="font-bold text-xs sm:text-sm truncate text-slate-800 dark:text-white flex items-center gap-2 group-hover:text-indigo-400 transition-colors">
                         <span>{session.title}</span>
                       </h4>
                     )}
@@ -350,7 +350,7 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
                     {/* Preview of prompt / response */}
                     {firstUserMsg && (
                       <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                        <span className="font-semibold text-slate-300">Q:</span> {firstUserMsg.content}
+                        <span className="font-semibold text-slate-400">Q:</span> {firstUserMsg.content}
                       </p>
                     )}
                     {lastAssistantMsg && lastAssistantMsg !== firstUserMsg && (
@@ -420,7 +420,7 @@ export const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({
         {/* Footer */}
         <div
           className={`p-3 px-5 border-t text-[11px] text-slate-400 flex items-center justify-between ${
-            theme === 'dark' ? 'border-white/10 bg-[#121318]' : 'border-slate-200 bg-slate-50'
+            theme === 'dark' ? 'border-white/10 bg-[#121318]' : 'border-slate-300/60 bg-[#f8f9fb]'
           }`}
         >
           <span>Sessions automatically persist in your browser's local storage.</span>

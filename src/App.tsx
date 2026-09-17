@@ -32,12 +32,55 @@ import {
 } from './lib/chatStorage';
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<'login' | 'app'>('login');
+  const [viewMode, setViewMode] = useState<'login' | 'app'>(() => {
+    try {
+      const saved = localStorage.getItem('intramind_view_mode');
+      if (saved === 'login' || saved === 'app') return saved;
+    } catch {}
+    return 'app';
+  });
+
+  const handleSetViewMode = (mode: 'login' | 'app') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('intramind_view_mode', mode);
+    } catch {}
+  };
+
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Theme State (Pure black theme exclusively)
-  const theme = 'dark';
+  // Theme State (Default to Dark Mode to reduce screen brightness)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem('intramind_theme');
+      // If user specifically had dark, keep dark; otherwise default to dark to reduce brightness
+      if (saved === 'dark') return 'dark';
+      localStorage.setItem('intramind_theme', 'dark');
+      return 'dark';
+    } catch {}
+    return 'dark';
+  });
+
+  const handleToggleTheme = (newTheme?: 'light' | 'dark') => {
+    setTheme(prev => {
+      const next = newTheme || (prev === 'dark' ? 'light' : 'dark');
+      try {
+        localStorage.setItem('intramind_theme', next);
+      } catch {}
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    }
+  }, [theme]);
 
   // RAG State
   const [documents, setDocuments] = useState<PDFDocument[]>([]);
@@ -799,7 +842,7 @@ export default function App() {
     return (
       <>
         <LoginPage
-          onEnterApp={() => setViewMode('app')}
+          onEnterApp={() => handleSetViewMode('app')}
           onOpenLoginModal={() => setIsLoginOpen(true)}
         />
         <LoginModal
@@ -808,7 +851,7 @@ export default function App() {
           onLoginSuccess={(email) => {
             setIsLoginOpen(false);
             setUserEmail(email);
-            setViewMode('app');
+            handleSetViewMode('app');
           }}
         />
       </>
@@ -816,17 +859,26 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen selection:bg-indigo-500 selection:text-white font-sans flex flex-col relative bg-black text-slate-100 transition-colors duration-200">
-      <main className="flex-1 w-full relative overflow-hidden bg-black">
-        {/* Subtle Ambient Background Glow on Pure Black */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-indigo-600/10 rounded-full blur-[140px] pointer-events-none animate-pulse-glow" />
-        <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
+    <div className={`min-h-screen selection:bg-emerald-500 selection:text-white font-sans flex flex-col relative transition-colors duration-200 ${
+      theme === 'dark' ? 'bg-black text-slate-100' : 'bg-[#edf7ef] text-slate-900'
+    }`}>
+      <main className={`flex-1 w-full relative overflow-hidden transition-colors duration-200 ${
+        theme === 'dark' ? 'bg-black' : 'bg-[#edf7ef]'
+      }`}>
+        {/* Subtle Ambient Background Glow only in Dark Mode (prevents glaring haze in Light Mode) */}
+        {theme === 'dark' && (
+          <>
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] rounded-full blur-[140px] pointer-events-none animate-pulse-glow bg-indigo-600/10" />
+            <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] rounded-full blur-[120px] pointer-events-none bg-purple-600/10" />
+          </>
+        )}
 
         <div className="h-screen max-h-screen flex flex-col relative z-10 overflow-hidden">
           <Header
             documents={documents}
             totalChunks={totalChunksCount}
             theme={theme}
+            setTheme={handleToggleTheme}
             onOpenUpload={() => setActiveTab('library')}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenVectorInspector={() => fetchChunksForActiveDoc()}
@@ -835,7 +887,7 @@ export default function App() {
             hasActiveChat={messages.length > 0}
             onOpenHistory={() => setIsHistoryModalOpen(true)}
             sessionCount={sessions.length}
-            onPortalHome={() => setViewMode('login')}
+            onPortalHome={() => handleSetViewMode('login')}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
@@ -973,6 +1025,7 @@ export default function App() {
         onUpdateSettings={handleUpdateRagSettings}
         documents={documents}
         theme={theme}
+        setTheme={handleToggleTheme}
       />
 
       <LoginModal

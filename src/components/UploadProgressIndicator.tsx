@@ -6,8 +6,7 @@ import {
   FileText,
   Cpu,
   Layers,
-  Sparkles,
-  Database,
+  Network,
   StopCircle,
   X,
   AlertTriangle,
@@ -74,8 +73,7 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
     { key: 'uploading', label: 'Upload', icon: FileText },
     { key: 'parsing', label: 'Parse & OCR', icon: Cpu },
     { key: 'chunking', label: 'Chunk', icon: Layers },
-    { key: 'embedding', label: 'Vectorize', icon: Sparkles },
-    { key: 'finalizing', label: 'Index', icon: Database },
+    { key: 'embedding', label: 'Vectorize', icon: Network },
   ];
 
   const getStageIndex = (currentStage: string) => {
@@ -88,10 +86,9 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
       case 'chunking':
         return 2;
       case 'embedding':
-        return 3;
       case 'finalizing':
       case 'complete':
-        return 4;
+        return 3;
       default:
         return 0;
     }
@@ -175,7 +172,7 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
           ? 'bg-rose-950/40 border-rose-500/40 text-rose-100'
           : theme === 'dark'
           ? 'bg-slate-900/95 border-indigo-500/40 text-slate-100'
-          : 'bg-gradient-to-b from-white via-indigo-50/40 to-white border-indigo-200 text-slate-900'
+          : 'bg-[#edf1f5] border-indigo-200/80 text-slate-800'
       } ${className}`}
     >
       {/* Background Subtle Gradient Glow */}
@@ -261,7 +258,9 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
             </span>
           </div>
 
-          <div className="w-full h-3 rounded-full bg-slate-800/80 p-0.5 border border-slate-700/60 overflow-hidden shadow-inner">
+          <div className={`w-full h-3 rounded-full p-0.5 border overflow-hidden shadow-inner ${
+            theme === 'dark' ? 'bg-slate-800/80 border-slate-700/60' : 'bg-slate-200 border-slate-300'
+          }`}>
             <div
               className={`h-full rounded-full transition-all duration-300 ease-out relative ${
                 isAborting
@@ -278,9 +277,11 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
         </div>
       ) : null}
 
-      {/* 5-Step Visual Pipeline Tracker (only when not in error) */}
+      {/* 4-Step Visual Pipeline Tracker (only when not in error) */}
       {!isError ? (
-        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 pt-1 border-t border-slate-800/60 relative z-10">
+        <div className={`grid grid-cols-4 gap-1.5 sm:gap-2 pt-1 border-t relative z-10 ${
+          theme === 'dark' ? 'border-slate-800/60' : 'border-slate-300/60'
+        }`}>
           {stagesList.map((st, idx) => {
             const isDone = activeStageIdx > idx || stage === 'complete';
             const isCurrent = activeStageIdx === idx && stage !== 'complete' && !isAborting;
@@ -294,7 +295,9 @@ export const UploadProgressIndicator: React.FC<UploadProgressIndicatorProps> = (
                     ? 'bg-indigo-500/20 border border-indigo-400/50 text-indigo-200 ring-2 ring-indigo-500/20'
                     : isDone
                     ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
-                    : 'bg-slate-800/30 border border-slate-700/30 text-slate-500'
+                    : theme === 'dark'
+                    ? 'bg-slate-800/30 border border-slate-700/30 text-slate-500'
+                    : 'bg-slate-200/50 border border-slate-300/50 text-slate-600'
                 }`}
               >
                 <div className="mb-1">

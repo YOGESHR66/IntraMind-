@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ArrowRight } from 'lucide-react';
 
 interface LoginPageProps {
   onEnterApp: () => void;
@@ -90,7 +90,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[hsl(var(--background))] text-[hsl(var(--foreground))] overflow-hidden flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="relative min-h-screen w-full bg-black text-white overflow-hidden flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Background Video (Index page wrapper) */}
       <video
         ref={videoRef}
@@ -104,8 +104,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
 
       {/* Main Hero Container sitting in relative z-10 with overflow-visible */}
       <div className="relative z-10 min-h-screen flex flex-col justify-between overflow-visible">
-        {/* Blurred overlay shape centered behind content */}
-        <div className="w-[984px] h-[527px] opacity-90 bg-gray-950 blur-[82px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none -z-10" />
+        {/* Subtle glow centered behind content */}
+        <div className="w-[984px] h-[527px] opacity-40 bg-indigo-950/50 blur-[100px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none -z-10" />
 
         {/* Top Navbar */}
         <header className="w-full">
@@ -116,15 +116,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
               className="flex items-center space-x-2.5 cursor-pointer select-none group"
             >
               <div className="h-8 flex items-center">
-                {/* Clean inline SVG mark fallback and img reference */}
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-400 p-0.5 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-amber-300 p-0.5 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                   <div className="w-full h-full bg-[#0d091a] rounded-[10px] flex items-center justify-center">
                     <span className="font-general font-bold text-sm bg-gradient-to-r from-indigo-300 via-purple-200 to-amber-200 bg-clip-text text-transparent">
                       IM
                     </span>
                   </div>
                 </div>
-                <span className="ml-2.5 font-general font-bold text-lg tracking-tight text-[hsl(var(--foreground))]">
+                <span className="ml-2.5 font-general font-bold text-lg tracking-tight text-white drop-shadow-sm">
                   IntraMind
                 </span>
               </div>
@@ -135,7 +134,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
               <button
                 type="button"
                 onClick={handleAction}
-                className="flex items-center space-x-1 text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+                className="flex items-center space-x-1 text-sm font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
               >
                 <span>RAG Architecture</span>
                 <ChevronDown className="w-3.5 h-3.5 opacity-70" />
@@ -144,7 +143,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
               <button
                 type="button"
                 onClick={handleAction}
-                className="text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+                className="text-sm font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
               >
                 Vector Search
               </button>
@@ -152,7 +151,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
               <button
                 type="button"
                 onClick={handleAction}
-                className="text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+                className="text-sm font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
               >
                 Document OCR
               </button>
@@ -160,7 +159,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
               <button
                 type="button"
                 onClick={handleAction}
-                className="flex items-center space-x-1 text-sm font-medium text-[hsl(var(--foreground))]/90 hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer"
+                className="flex items-center space-x-1 text-sm font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
               >
                 <span>Documentation</span>
                 <ChevronDown className="w-3.5 h-3.5 opacity-70" />
@@ -172,26 +171,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
               <button
                 type="button"
                 onClick={handleAction}
-                className="btn-hero-secondary rounded-full px-4 py-2 text-sm font-medium cursor-pointer active:scale-95"
+                className="rounded-full px-5 py-2 text-sm font-semibold cursor-pointer active:scale-95 bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all shadow-md"
               >
                 Sign Up
               </button>
             </div>
           </div>
 
-          {/* 1px divider line with gradient from-transparent via-foreground/20 to-transparent, offset mt-[3px] */}
-          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[hsl(var(--foreground))]/20 to-transparent mt-[3px]" />
+          {/* 1px divider line */}
+          <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent mt-[3px]" />
         </header>
 
-        {/* Hero Content (vertically centered in remaining space via flex-1) */}
+        {/* Hero Content */}
         <main className="flex-1 flex flex-col items-center justify-center text-center px-4 py-8 relative">
-          {/* Headline: "IntraMind" (replacing "Power AI" per prompt specifications) */}
           <h1 className="font-general font-normal leading-[1.02] tracking-[-0.024em] text-[clamp(4.2rem,15vw,220px)] select-none">
-            <span className="text-[hsl(var(--foreground))]">Intra</span>
+            <span className="text-white drop-shadow-lg">Intra</span>
             <span
-              className="bg-clip-text text-transparent"
+              className="bg-clip-text text-transparent drop-shadow-lg"
               style={{
-                backgroundImage: 'linear-gradient(to left, #6366f1, #a855f7, #fcd34d)',
+                backgroundImage: 'linear-gradient(to left, #818cf8, #c084fc, #fde047)',
               }}
             >
               Mind
@@ -199,7 +197,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
           </h1>
 
           {/* Subtitle */}
-          <p className="text-[hsl(var(--hero-sub))] text-base sm:text-lg leading-8 max-w-lg mt-[9px] opacity-90 font-sans">
+          <p className="text-slate-200 text-base sm:text-lg leading-8 max-w-lg mt-[9px] font-sans font-medium drop-shadow-md">
             Enterprise Neural RAG & Multi-Format
             <br className="hidden sm:inline" /> Document Intelligence Engine
           </p>
@@ -208,31 +206,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onEnterApp, onOpenLoginMod
           <button
             type="button"
             onClick={onEnterApp}
-            className="btn-hero-secondary px-[32px] py-[20px] mt-[25px] rounded-full text-base font-medium cursor-pointer shadow-xl hover:shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-2.5"
+            className="px-8 py-4 mt-7 rounded-full text-base font-semibold cursor-pointer shadow-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 hover:from-indigo-400 hover:via-purple-500 hover:to-indigo-500 text-white border border-white/30 hover:shadow-indigo-500/50 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 group"
           >
             <span>Launch RAG Workspace</span>
+            <ArrowRight className="w-5 h-5 text-white/90 group-hover:translate-x-1 transition-transform" />
           </button>
         </main>
 
-        {/* Capabilities marquee pinned to bottom of hero, pb-10 */}
+        {/* Capabilities marquee */}
         <footer className="w-full pb-10 px-6 sm:px-8">
           <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 md:gap-12">
-            {/* Left side: static text */}
-            <div className="text-[hsl(var(--foreground))]/60 text-sm text-center md:text-left leading-snug shrink-0 font-medium">
+            <div className="text-slate-300 text-sm text-center md:text-left leading-snug shrink-0 font-medium">
               Powered by advanced
               <br />
               Neural RAG architecture
             </div>
 
-            {/* Right side: infinite scrolling marquee */}
             <div className="relative flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)] w-full">
               <div className="animate-marquee flex items-center gap-12">
                 {[...CAPABILITIES, ...CAPABILITIES, ...CAPABILITIES].map((item, idx) => (
                   <div key={idx} className="flex items-center space-x-2.5 shrink-0 select-none">
-                    <div className="liquid-glass px-2 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold text-[hsl(var(--foreground))] tracking-wider">
+                    <div className="liquid-glass px-2 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold text-white tracking-wider border border-white/20">
                       {item.badge}
                     </div>
-                    <span className="text-sm font-semibold text-[hsl(var(--foreground))] whitespace-nowrap">
+                    <span className="text-sm font-semibold text-white whitespace-nowrap drop-shadow-xs">
                       {item.name}
                     </span>
                   </div>

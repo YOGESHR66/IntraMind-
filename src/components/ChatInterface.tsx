@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  Send, Bot, User, Sparkles, ShieldCheck, ChevronDown, ChevronUp, Clock, Layers, Upload,
+  Send, Bot, User, ShieldCheck, ChevronDown, ChevronUp, Clock, Layers, Upload,
   Copy, Check, Lightbulb, BookmarkCheck, FileText, Plus, HardDrive, Loader2, CheckCircle2,
   AlertCircle, X, FileCheck, RotateCcw, MessageSquare, StopCircle, Mic, MicOff, Brain, ArrowUp,
   FastForward, History, Target, ArrowLeft
@@ -13,14 +13,18 @@ import { CitationExcerptOverlay } from './CitationExcerptOverlay';
 import { UploadProgressIndicator } from './UploadProgressIndicator';
 import { formatTimeAgo } from '../lib/chatStorage';
 
-const markdownComponents = {
+const getMarkdownComponents = (theme: 'light' | 'dark' = 'dark') => ({
   h1: ({ children }: any) => (
-    <h1 className="text-xl sm:text-2xl font-bold text-white mt-4 mb-2 flex items-center gap-2">
+    <h1 className={`text-xl sm:text-2xl font-bold mt-4 mb-2 flex items-center gap-2 ${
+      theme === 'dark' ? 'text-white' : 'text-slate-800'
+    }`}>
       {children}
     </h1>
   ),
   h2: ({ children }: any) => (
-    <h2 className="text-lg sm:text-xl font-bold text-white mt-4 mb-2 flex items-center gap-2">
+    <h2 className={`text-lg sm:text-xl font-bold mt-4 mb-2 flex items-center gap-2 ${
+      theme === 'dark' ? 'text-white' : 'text-slate-800'
+    }`}>
       {children}
     </h2>
   ),
@@ -30,77 +34,122 @@ const markdownComponents = {
       return null;
     }
     return (
-      <h3 className="text-base sm:text-lg font-bold text-white mt-3.5 mb-2 flex items-center gap-2">
+      <h3 className={`text-base sm:text-lg font-bold mt-3.5 mb-2 flex items-center gap-2 ${
+        theme === 'dark' ? 'text-white' : 'text-slate-800'
+      }`}>
         {children}
       </h3>
     );
   },
   h4: ({ children }: any) => (
-    <h4 className="text-sm sm:text-base font-bold text-white mt-3 mb-1 flex items-center gap-2">
+    <h4 className={`text-sm sm:text-base font-bold mt-3 mb-1 flex items-center gap-2 ${
+      theme === 'dark' ? 'text-white' : 'text-slate-800'
+    }`}>
       {children}
     </h4>
   ),
   p: ({ children }: any) => (
-    <p className="text-sm sm:text-base text-neutral-200 leading-relaxed my-3">
+    <p className={`text-sm sm:text-base leading-relaxed my-2.5 ${
+      theme === 'dark' ? 'text-neutral-200' : 'text-slate-700'
+    }`}>
       {children}
     </p>
   ),
   strong: ({ children }: any) => (
-    <strong className="font-bold text-white tracking-wide">
+    <strong className={`font-semibold tracking-wide ${
+      theme === 'dark' ? 'text-white' : 'text-slate-800'
+    }`}>
       {children}
     </strong>
   ),
+  blockquote: ({ children }: any) => (
+    <div className={`my-3.5 p-3.5 sm:p-4 rounded-xl border-l-4 text-sm leading-relaxed ${
+      theme === 'dark'
+        ? 'bg-neutral-900/80 border-emerald-500 text-neutral-200'
+        : 'bg-[#edf1f5] border-emerald-600 text-slate-700'
+    }`}>
+      {children}
+    </div>
+  ),
   table: ({ children }: any) => (
-    <div className="overflow-x-auto my-4 w-full rounded-lg border border-neutral-800 bg-neutral-950/40">
-      <table className="w-full text-left text-sm text-neutral-200 border-collapse">
+    <div className={`overflow-x-auto my-3 w-full rounded-lg border ${
+      theme === 'dark'
+        ? 'border-neutral-800 bg-neutral-950/40'
+        : 'border-slate-200/80 bg-[#f7f9fb] shadow-xs'
+    }`}>
+      <table className={`w-full text-left text-sm border-collapse ${
+        theme === 'dark' ? 'text-neutral-200' : 'text-slate-700'
+      }`}>
         {children}
       </table>
     </div>
   ),
   thead: ({ children }: any) => (
-    <thead className="border-b border-neutral-800 text-white font-bold bg-neutral-900/60">
+    <thead className={`border-b font-bold ${
+      theme === 'dark'
+        ? 'border-neutral-800 text-white bg-neutral-900/60'
+        : 'border-slate-200/80 text-slate-700 bg-[#edf1f5]'
+    }`}>
       {children}
     </thead>
   ),
   tbody: ({ children }: any) => (
-    <tbody className="divide-y divide-neutral-800/80">
+    <tbody className={`divide-y ${
+      theme === 'dark' ? 'divide-neutral-800/80' : 'divide-slate-200/70'
+    }`}>
       {children}
     </tbody>
   ),
   tr: ({ children }: any) => (
-    <tr className="hover:bg-neutral-900/40 transition-colors">
+    <tr className={`transition-colors ${
+      theme === 'dark' ? 'hover:bg-neutral-900/40' : 'hover:bg-slate-100/60'
+    }`}>
       {children}
     </tr>
   ),
   th: ({ children }: any) => (
-    <th className="py-2.5 px-4 font-bold text-white text-sm">
+    <th className={`py-2.5 px-4 font-bold text-sm ${
+      theme === 'dark' ? 'text-white' : 'text-slate-700'
+    }`}>
       {children}
     </th>
   ),
   td: ({ children }: any) => (
-    <td className="py-2.5 px-4 text-sm text-neutral-300 align-top">
+    <td className={`py-2.5 px-4 text-sm align-top ${
+      theme === 'dark' ? 'text-neutral-300' : 'text-slate-600'
+    }`}>
       {children}
     </td>
   ),
   ul: ({ children }: any) => (
-    <ul className="space-y-1.5 my-2 pl-1 text-sm sm:text-base text-neutral-200">
+    <ul className={`space-y-1.5 my-2 pl-1 text-sm sm:text-base ${
+      theme === 'dark' ? 'text-neutral-200' : 'text-slate-700'
+    }`}>
       {children}
     </ul>
   ),
   ol: ({ children }: any) => (
-    <ol className="list-decimal list-outside space-y-1.5 my-2 pl-5 text-sm sm:text-base text-neutral-200 font-medium">
+    <ol className={`list-decimal list-outside space-y-1.5 my-2 pl-5 text-sm sm:text-base font-medium ${
+      theme === 'dark' ? 'text-neutral-200' : 'text-slate-700'
+    }`}>
       {children}
     </ol>
   ),
   li: ({ children }: any) => (
-    <li className="text-sm sm:text-base text-neutral-200 leading-relaxed">
+    <li className={`text-sm sm:text-base leading-relaxed ${
+      theme === 'dark' ? 'text-neutral-200' : 'text-slate-700'
+    }`}>
       {children}
     </li>
   ),
   code: ({ inline, className, children, ...props }: any) => {
     if (inline) {
       return (
-        <code className="bg-neutral-800 text-blue-300 px-1.5 py-0.5 rounded text-xs font-mono font-semibold" {...props}>
+        <code className={`px-1.5 py-0.5 rounded text-xs font-mono font-semibold ${
+          theme === 'dark'
+            ? 'bg-neutral-800 text-emerald-300'
+            : 'bg-[#e9edf2] text-emerald-800 border border-slate-300/60'
+        }`} {...props}>
           {children}
         </code>
       );
@@ -119,15 +168,23 @@ const markdownComponents = {
     }
 
     return (
-      <div className="overflow-x-auto my-3 rounded-lg bg-neutral-900 border border-neutral-800 p-3">
-        <code className="text-xs sm:text-sm font-mono text-blue-300 block" {...props}>
+      <div className={`overflow-x-auto my-3 rounded-xl border p-3.5 ${
+        theme === 'dark'
+          ? 'bg-neutral-900 border-neutral-800'
+          : 'bg-[#1e293b] border-slate-700/60 shadow-xs'
+      }`}>
+        <code className="text-xs sm:text-sm font-mono text-emerald-300 block" {...props}>
           {children}
         </code>
       </div>
     );
   },
-  hr: () => <hr className="my-4 border-neutral-800" />,
-};
+  hr: () => (
+    <hr className={`my-4 ${
+      theme === 'dark' ? 'border-neutral-800' : 'border-slate-200'
+    }`} />
+  ),
+});
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -569,9 +626,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl border bg-black border-neutral-850 text-neutral-100">
+    <div className={`rounded-2xl flex flex-col h-full overflow-hidden border-2 transition-colors duration-200 ${
+      theme === 'dark'
+        ? 'bg-[#0b0d11] border-neutral-800 text-neutral-100 shadow-2xl ring-1 ring-white/5'
+        : 'bg-[#edf7f0] border-emerald-300/90 text-slate-800 shadow-md ring-1 ring-emerald-900/5'
+    }`}>
       {/* Top Active Documents Bar */}
-      <div className="px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 border-b bg-neutral-950 border-neutral-850 text-white">
+      <div className={`px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 border-b-2 transition-colors duration-200 ${
+        theme === 'dark'
+          ? 'bg-[#12151b] border-neutral-800 text-white'
+          : 'bg-[#dcf0e2] border-emerald-300 text-slate-800'
+      }`}>
         <input
           type="file"
           ref={fileInputRef}
@@ -581,8 +646,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         />
 
         <div className="flex items-center space-x-2 min-w-0 flex-1 overflow-x-auto py-0.5">
-          <span className="text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 shrink-0">
-            <HardDrive className="w-3.5 h-3.5 text-indigo-400" />
+          <span className={`text-[11px] font-bold flex items-center gap-1.5 shrink-0 ${
+            theme === 'dark' ? 'text-indigo-300' : 'text-emerald-800'
+          }`}>
+            <HardDrive className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
             <span>Active Context:</span>
           </span>
 
@@ -591,19 +658,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <UploadProgressIndicator
                 progress={uploadProgress}
                 onAbort={onAbortUpload || (() => {})}
-                theme="dark"
+                theme={theme}
                 variant="compact"
               />
             </div>
           ) : isUploading ? (
-            <div className="bg-indigo-500/20 border border-indigo-400/40 px-2.5 py-0.5 rounded-lg text-[11px] font-bold text-indigo-200 flex items-center space-x-1.5 shrink-0 shadow-xs animate-pulse">
-              <Loader2 className="w-3 h-3 text-indigo-300 animate-spin" />
+            <div className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold flex items-center space-x-1.5 shrink-0 shadow-xs animate-pulse border ${
+              theme === 'dark'
+                ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200'
+                : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+            }`}>
+              <Loader2 className={`w-3 h-3 animate-spin ${theme === 'dark' ? 'text-indigo-300' : 'text-emerald-700'}`} />
               <span className="truncate max-w-[150px]">Uploading {uploadingFileName}...</span>
             </div>
           ) : null}
 
           {documents.length === 0 && !isUploading && (!uploadProgress || uploadProgress.stage === 'idle') ? (
-            <span className="text-[11px] text-slate-400 italic shrink-0">No files uploaded yet</span>
+            <span className={`text-[11px] italic shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+              No files uploaded yet
+            </span>
           ) : (
             documents.map(d => {
               const isJustUploaded = d.id === lastUploadedDocId;
@@ -613,7 +686,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   className={`border px-2.5 py-1 rounded-xl text-[11px] font-semibold flex items-center space-x-1.5 shrink-0 shadow-xs transition-all ${
                     isJustUploaded
                       ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200 ring-2 ring-emerald-400/30'
-                      : 'bg-white/10 border-white/15 text-white hover:bg-white/20'
+                      : theme === 'dark'
+                        ? 'bg-neutral-850 border-neutral-700 text-white hover:bg-neutral-800'
+                        : 'bg-white border-emerald-300 hover:border-emerald-400 text-slate-800 hover:bg-emerald-50/70 shadow-2xs'
                   }`}
                 >
                   {renderMiniBadge(d.name)}
@@ -631,7 +706,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         e.preventDefault();
                         onDeleteDoc(d.id);
                       }}
-                      className="ml-1 p-0.5 text-slate-400 hover:text-rose-400 hover:bg-white/10 rounded-full cursor-pointer transition-colors"
+                      className={`ml-1 p-0.5 rounded-full cursor-pointer transition-colors ${
+                        theme === 'dark'
+                          ? 'text-slate-400 hover:text-rose-400 hover:bg-white/10'
+                          : 'text-slate-400 hover:text-rose-600 hover:bg-slate-200'
+                      }`}
                       title={`Remove ${d.name}`}
                       aria-label={`Remove ${d.name}`}
                     >
@@ -653,10 +732,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 setInputQuery('');
                 onExitChat();
               }}
-              className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 hover:text-white border border-neutral-700 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 border ${
+                theme === 'dark'
+                  ? 'bg-neutral-850 hover:bg-neutral-800 text-neutral-200 hover:text-white border-neutral-700 hover:border-neutral-600'
+                  : 'bg-white hover:bg-emerald-50/80 text-slate-800 hover:text-slate-950 border-emerald-300 hover:border-emerald-400 shadow-2xs'
+              }`}
               title="Exit chat and return to the Workspace Area (conversation saved to History)"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-indigo-400" />
+              <ArrowLeft className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
               <span>Exit Chat</span>
             </button>
           )}
@@ -673,26 +756,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               fileInputRef.current?.click();
             }}
             disabled={isUploading}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/30 active:scale-95 hover:scale-105"
+            className={`px-3 py-1.5 disabled:opacity-50 text-white text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105 border ${
+              theme === 'dark'
+                ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-500 shadow-emerald-950/30'
+                : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700'
+            }`}
             title="Start a new chat and select a document to upload"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">New Chat & Upload</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white border border-white/20 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105"
-            title="Add another file to active context"
-          >
-            {isUploading ? (
-              <Loader2 className="w-3.5 h-3.5 text-indigo-300 animate-spin" />
-            ) : (
-              <Upload className="w-3.5 h-3.5 text-sky-300" />
-            )}
-            <span>{isUploading ? 'Uploading...' : 'Add File'}</span>
           </button>
 
           {onResetChat && (
@@ -703,10 +775,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 setInputQuery('');
                 onResetChat();
               }}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105"
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105 border ${
+                theme === 'dark'
+                  ? 'bg-neutral-850 hover:bg-neutral-800 text-neutral-200 hover:text-white border-neutral-700 hover:border-neutral-600'
+                  : 'bg-white hover:bg-emerald-50/80 text-slate-800 hover:text-slate-950 border-emerald-300 hover:border-emerald-400 shadow-2xs'
+              }`}
               title="Reset chat conversation"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-300" />
+              <RotateCcw className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`} />
               <span>Reset Chat</span>
             </button>
           )}
@@ -715,10 +791,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             <button
               type="button"
               onClick={onOpenHistory}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105"
+              className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105 border ${
+                theme === 'dark'
+                  ? 'bg-neutral-850 hover:bg-neutral-800 text-neutral-200 hover:text-white border-neutral-700 hover:border-neutral-600'
+                  : 'bg-white hover:bg-emerald-50/80 text-slate-800 hover:text-slate-950 border-emerald-300 hover:border-emerald-400 shadow-2xs'
+              }`}
               title="View and load previous chat sessions from local storage"
             >
-              <History className="w-3.5 h-3.5 text-indigo-300" />
+              <History className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-indigo-300' : 'text-emerald-700'}`} />
               <span>History {sessionsCount > 0 ? `(${sessionsCount})` : ''}</span>
             </button>
           )}
@@ -729,18 +809,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             onClick={() => setHighlightCitationsMode(!highlightCitationsMode)}
             className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105 border ${
               highlightCitationsMode
-                ? 'bg-indigo-600/40 text-cyan-200 border-indigo-400/50 shadow-indigo-950/30'
-                : 'bg-white/10 hover:bg-white/20 text-white/70 hover:text-white border-white/20'
+                ? theme === 'dark'
+                  ? 'bg-indigo-600/40 text-cyan-200 border-indigo-400/60 shadow-indigo-950/30'
+                  : 'bg-white text-emerald-900 border-2 border-emerald-600 shadow-xs'
+                : theme === 'dark'
+                  ? 'bg-neutral-850 hover:bg-neutral-800 text-neutral-300 hover:text-white border-neutral-700 hover:border-neutral-600'
+                  : 'bg-white hover:bg-emerald-50/80 text-slate-800 hover:text-slate-950 border-emerald-300 hover:border-emerald-400 shadow-2xs'
             }`}
             title="Toggle Highlight Citations (prominently badges source references and enables excerpt overlay on click)"
           >
-            <Sparkles className={`w-3.5 h-3.5 ${highlightCitationsMode ? 'text-cyan-300 animate-pulse' : 'text-slate-400'}`} />
+            <BookmarkCheck className={`w-3.5 h-3.5 ${highlightCitationsMode ? (theme === 'dark' ? 'text-cyan-300' : 'text-emerald-700') : 'text-slate-400'}`} />
             <span>Highlight Citations</span>
             <span
-              className={`text-[9px] px-1 py-0.2 rounded font-mono ${
+              className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold border ${
                 highlightCitationsMode
-                  ? 'bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-400/30'
-                  : 'bg-neutral-800 text-neutral-400'
+                  ? theme === 'dark'
+                    ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400/30'
+                    : 'bg-emerald-200 text-emerald-900 border-emerald-400'
+                  : theme === 'dark'
+                    ? 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                    : 'bg-slate-200 text-slate-700 border-slate-300'
               }`}
             >
               {highlightCitationsMode ? 'ON' : 'OFF'}
@@ -753,18 +841,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             onClick={handleTogglePrecise}
             className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 hover:scale-105 border ${
               isPrecise
-                ? 'bg-cyan-600/30 text-cyan-200 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
-                : 'bg-white/10 hover:bg-white/20 text-white/70 hover:text-white border-white/20'
+                ? theme === 'dark'
+                  ? 'bg-cyan-600/30 text-cyan-200 border-cyan-400/60 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                  : 'bg-white text-cyan-900 border-2 border-cyan-600 shadow-xs'
+                : theme === 'dark'
+                  ? 'bg-neutral-850 hover:bg-neutral-800 text-neutral-300 hover:text-white border-neutral-700 hover:border-neutral-600'
+                  : 'bg-white hover:bg-emerald-50/80 text-slate-800 hover:text-slate-950 border-emerald-300 hover:border-emerald-400 shadow-2xs'
             }`}
             title="Toggle Precise Output: Restricts AI responses to concise 2-3 line bullet points"
           >
-            <Target className={`w-3.5 h-3.5 ${isPrecise ? 'text-cyan-300 animate-pulse' : 'text-slate-400'}`} />
+            <Target className={`w-3.5 h-3.5 ${isPrecise ? (theme === 'dark' ? 'text-cyan-300 animate-pulse' : 'text-emerald-700') : 'text-slate-400'}`} />
             <span>Precise Output</span>
             <span
-              className={`text-[9px] px-1 py-0.2 rounded font-mono ${
+              className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold border ${
                 isPrecise
-                  ? 'bg-cyan-500/30 text-cyan-300 font-bold border border-cyan-400/40'
-                  : 'bg-neutral-800 text-neutral-400'
+                  ? theme === 'dark'
+                    ? 'bg-cyan-500/30 text-cyan-300 border-cyan-400/40'
+                    : 'bg-cyan-200 text-cyan-900 border-cyan-400'
+                  : theme === 'dark'
+                    ? 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                    : 'bg-slate-200 text-slate-700 border-slate-300'
               }`}
             >
               {isPrecise ? '2-3 Bullets' : 'OFF'}
@@ -885,25 +981,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       {/* Chat Messages Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
-          /* Google Gemini-style Centered Prompt & Ingestion Interface (Image 2 style) */
+          /* Centered Prompt & Ingestion Interface */
           <div className="h-full flex flex-col items-center justify-center text-center p-4 sm:p-8 max-w-4xl mx-auto my-auto animate-in fade-in duration-300">
-            {/* Header: Title with 4-pointed Gemini geometric star outline */}
+            {/* Header: Title */}
             <div className="flex items-center justify-center gap-3.5 mb-2">
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight text-white font-sans">
+              <h2 className={`text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight font-sans transition-colors ${
+                theme === 'dark' ? 'text-white' : 'text-slate-800'
+              }`}>
                 IntraMind Workspace
               </h2>
-              {/* Signature 4-pointed Gemini Sparkle Star Icon (concave curved outline) */}
-              <div className="shrink-0 text-slate-300 hover:text-white transition-colors">
-                <svg
-                  className="w-8 h-8 sm:w-10 sm:h-10 text-indigo-300/90 stroke-current fill-none stroke-[1.4] transition-transform hover:scale-110"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12 2C12 7.52285 7.52285 12 2 12C7.52285 12 12 16.4771 12 22C12 16.4771 16.4771 12 22 12C16.4771 12 12 7.52285 12 2Z" />
-                </svg>
-              </div>
             </div>
 
-            <p className="text-xs sm:text-sm text-slate-400 max-w-xl mb-8 leading-relaxed font-normal">
+            <p className={`text-xs sm:text-sm max-w-xl mb-8 leading-relaxed font-normal transition-colors ${
+              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+            }`}>
               Single unified RAG workspace. Ask questions across your PDF, Word, PNG/JPG, JSON, and TXT files with highlighted key insights and verified citations.
             </p>
 
@@ -919,7 +1010,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               </div>
             ) : null}
 
-            {/* Large Gemini-style Prompt Input & Drag-and-Drop Capsule */}
+            {/* Large Prompt Input & Drag-and-Drop Capsule */}
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -927,26 +1018,36 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               }}
               onDragLeave={() => setIsDragOver(false)}
               onDrop={handleDrop}
-              className={`w-full max-w-3xl relative rounded-3xl p-[1px] transition-all duration-300 shadow-2xl group ${
+              className={`w-full max-w-3xl relative rounded-3xl transition-all duration-200 border-2 shadow-lg group ${
                 isDragOver
-                  ? 'bg-gradient-to-r from-blue-500 via-teal-400 via-amber-400 to-rose-500 ring-4 ring-indigo-500/20 scale-[1.01]'
-                  : 'bg-white/10 hover:bg-white/20'
+                  ? 'border-emerald-500 ring-4 ring-emerald-500/20 scale-[1.01]'
+                  : theme === 'dark'
+                    ? 'bg-[#181b20] hover:bg-[#1d2127] border-neutral-700 hover:border-neutral-600 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/15'
+                    : 'bg-white hover:bg-slate-50/70 border-slate-300 hover:border-slate-400 focus-within:border-emerald-600 focus-within:ring-4 focus-within:ring-emerald-500/15'
               }`}
             >
               {/* Inner Capsule Container */}
-              <div className="w-full bg-[#1e1f20] hover:bg-[#202124] rounded-[23px] p-4 sm:p-5 flex flex-col text-left transition-colors">
+              <div className="w-full rounded-[22px] p-4 sm:p-5 flex flex-col text-left">
                 {/* Uploaded File Pill(s) inside top of prompt container */}
                 {documents.length > 0 && (
                   <div className="flex flex-wrap gap-2.5 mb-4 animate-in fade-in zoom-in-95 duration-200">
                     {documents.map((doc) => (
                       <div
                         key={doc.id}
-                        className="relative inline-flex items-center gap-3 bg-[#2f3033] hover:bg-[#383a3e] border border-white/5 rounded-2xl py-2 px-3.5 pr-4 transition-all shadow-sm group"
+                        className={`relative inline-flex items-center gap-3 rounded-2xl py-2 px-3.5 pr-4 transition-all shadow-xs group border-2 ${
+                          theme === 'dark'
+                            ? 'bg-[#26282e] hover:bg-[#2e3138] border-neutral-700 text-white'
+                            : 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-800'
+                        }`}
                       >
-                        {/* Outline Document Icon matching screenshot */}
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-200 shrink-0">
+                        {/* Outline Document Icon */}
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                          theme === 'dark' ? 'text-slate-200' : 'text-emerald-700'
+                        }`}>
                           <svg
-                            className="w-5 h-5 text-slate-200 stroke-current fill-none stroke-[1.8]"
+                            className={`w-5 h-5 stroke-current fill-none stroke-[1.8] ${
+                              theme === 'dark' ? 'text-slate-200' : 'text-emerald-700'
+                            }`}
                             viewBox="0 0 24 24"
                           >
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -956,10 +1057,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                         {/* Title & File subtitle */}
                         <div className="flex flex-col min-w-0 pr-1 text-left">
-                          <span className="text-xs sm:text-sm font-semibold text-white truncate max-w-[180px] sm:max-w-[280px]">
+                          <span className={`text-xs sm:text-sm font-semibold truncate max-w-[180px] sm:max-w-[280px] ${
+                            theme === 'dark' ? 'text-white' : 'text-slate-800'
+                          }`}>
                             {doc.name}
                           </span>
-                          <span className="text-[11px] text-slate-400 font-normal">
+                          <span className={`text-[11px] font-normal ${
+                            theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                          }`}>
                             File
                           </span>
                         </div>
@@ -993,13 +1098,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
-                      className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                      className={`p-1.5 rounded-xl border transition-all cursor-pointer disabled:opacity-50 shrink-0 shadow-2xs ${
+                        theme === 'dark'
+                          ? 'bg-neutral-800 hover:bg-neutral-750 text-slate-200 hover:text-white border-neutral-700'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-300'
+                      }`}
                       title="Upload and index file (PDF, DOCX, Images, JSON, TXT)"
                     >
                       {isUploading ? (
-                        <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                        <Loader2 className={`w-5 h-5 animate-spin ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
                       ) : (
-                        <Plus className="w-6 h-6 stroke-[1.8]" />
+                        <Plus className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.8]" />
                       )}
                     </button>
 
@@ -1015,7 +1124,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       }}
                       placeholder="Ask anything"
                       disabled={isLoading || isUploading}
-                      className="bg-transparent border-0 text-sm sm:text-base text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-0 font-sans w-full leading-relaxed"
+                      className={`bg-transparent border-0 text-sm sm:text-base focus:outline-none focus:ring-0 font-sans w-full leading-relaxed ${
+                        theme === 'dark'
+                          ? 'text-slate-100 placeholder:text-slate-400'
+                          : 'text-slate-800 placeholder:text-slate-400'
+                      }`}
                     />
                   </div>
 
@@ -1024,20 +1137,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <button
                       type="button"
                       onClick={handleTogglePrecise}
-                      className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border select-none ${
+                      className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border select-none shadow-2xs ${
                         isPrecise
-                          ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
-                          : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border-white/10'
+                          ? theme === 'dark'
+                            ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/60 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                            : 'bg-cyan-50 text-cyan-900 border-2 border-cyan-500 font-bold'
+                          : theme === 'dark'
+                            ? 'bg-neutral-800 hover:bg-neutral-750 text-slate-300 hover:text-white border-neutral-700'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-300'
                       }`}
                       title="Precise Output: Generate concise 2 to 3 line bullet point answers"
                     >
-                      <Target className={`w-3.5 h-3.5 ${isPrecise ? 'text-cyan-300 animate-pulse' : 'text-slate-400'}`} />
+                      <Target className={`w-3.5 h-3.5 ${isPrecise ? (theme === 'dark' ? 'text-cyan-400 animate-pulse' : 'text-emerald-700') : 'text-slate-500'}`} />
                       <span className="hidden sm:inline">Precise Output</span>
                       <span
-                        className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                        className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold border ${
                           isPrecise
-                            ? 'bg-cyan-400/30 text-cyan-200 border border-cyan-400/40'
-                            : 'bg-neutral-800 text-neutral-400'
+                            ? theme === 'dark' ? 'bg-cyan-400/30 text-cyan-200 border-cyan-400/40' : 'bg-cyan-200 text-cyan-900 border-cyan-400'
+                            : theme === 'dark' ? 'bg-neutral-900 text-neutral-400 border-neutral-750' : 'bg-slate-200 text-slate-700 border-slate-300'
                         }`}
                       >
                         {isPrecise ? '2-3 Bullets' : 'Off'}
@@ -1048,7 +1165,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       type="button"
                       onClick={() => handleSubmit()}
                       disabled={isLoading || (!inputQuery.trim() && documents.length === 0)}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1a73e8] hover:bg-[#1557b0] disabled:bg-slate-700 disabled:opacity-40 text-white flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+                      className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer border ${
+                        theme === 'dark'
+                          ? 'bg-[#1a73e8] hover:bg-[#1557b0] border-indigo-400/40 disabled:bg-neutral-800 disabled:border-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed text-white'
+                          : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700 disabled:bg-slate-100 disabled:border-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed text-white'
+                      }`}
                       title="Send"
                     >
                       <ArrowUp className="w-5 h-5 stroke-[2.5]" />
@@ -1062,15 +1183,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             {recentSessions && recentSessions.length > 0 && (
               <div className="w-full max-w-3xl mt-6 text-left animate-in fade-in slide-in-from-bottom-2">
                 <div className="flex items-center justify-between mb-2.5 px-1">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                    <History className="w-3.5 h-3.5 text-indigo-400" />
+                  <div className={`flex items-center gap-1.5 text-xs font-semibold ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    <History className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`} />
                     <span>Recent Saved Conversations</span>
                   </div>
                   {onOpenHistory && (
                     <button
                       type="button"
                       onClick={onOpenHistory}
-                      className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer"
+                      className={`text-xs font-medium transition-colors cursor-pointer ${
+                        theme === 'dark' ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'
+                      }`}
                     >
                       View all ({sessionsCount || recentSessions.length}) →
                     </button>
@@ -1082,19 +1207,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       key={sess.id}
                       type="button"
                       onClick={() => onSelectSession?.(sess)}
-                      className="text-left p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/40 transition-all cursor-pointer group shadow-xs flex flex-col justify-between"
+                      className={`text-left p-3.5 rounded-2xl border-2 transition-all cursor-pointer group shadow-xs flex flex-col justify-between ${
+                        theme === 'dark'
+                          ? 'bg-neutral-900/80 hover:bg-neutral-850 border-neutral-800 hover:border-neutral-700'
+                          : 'bg-white hover:bg-slate-50 border-slate-300 hover:border-slate-400 shadow-2xs'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2 w-full">
-                        <span className="text-xs font-semibold text-white group-hover:text-indigo-300 transition-colors line-clamp-1 flex-1">
+                        <span className={`text-xs font-semibold group-hover:text-indigo-500 transition-colors line-clamp-1 flex-1 ${
+                          theme === 'dark' ? 'text-white' : 'text-slate-800'
+                        }`}>
                           {sess.title}
                         </span>
-                        <span className="text-[10px] text-slate-500 shrink-0 font-medium ml-1">
+                        <span className={`text-[10px] shrink-0 font-medium ml-1 ${
+                          theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
+                        }`}>
                           {formatTimeAgo(sess.updatedAt || sess.createdAt)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[11px] text-slate-400 w-full">
+                      <div className={`flex items-center justify-between mt-2 pt-2 border-t text-[11px] w-full ${
+                        theme === 'dark' ? 'border-neutral-800 text-slate-400' : 'border-slate-200 text-slate-500'
+                      }`}>
                         <span>{sess.messages.length} message{sess.messages.length === 1 ? '' : 's'}</span>
-                        <span className="text-indigo-400 font-medium group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                        <span className="text-emerald-700 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
                           Resume →
                         </span>
                       </div>
@@ -1113,7 +1248,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             if (msg.sender === 'user') {
               return (
                 <div key={msg.id} className="flex justify-end w-full my-3 px-1 animate-in fade-in">
-                  <div className="bg-[#1a56db] text-white px-5 py-2.5 rounded-full text-sm sm:text-base font-normal max-w-[85%] sm:max-w-[70%] shadow-sm break-words">
+                  <div className={`px-5 py-2.5 rounded-full text-sm sm:text-base font-normal max-w-[85%] sm:max-w-[70%] break-words ${
+                    theme === 'dark'
+                      ? 'bg-[#1a56db] text-white shadow-sm'
+                      : 'bg-[#e2e7ec] text-slate-800 border border-slate-300/60 shadow-xs font-medium'
+                  }`}>
                     {msg.content}
                   </div>
                 </div>
@@ -1136,6 +1275,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 renderHighlightedContent={renderHighlightedContent}
                 completedMessageIdsRef={completedMessageIdsRef}
                 onStreamStep={scrollToBottom}
+                theme={theme}
               />
             );
           })
@@ -1144,22 +1284,36 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {/* Enhanced Loading Typing Indicator */}
         {isLoading && (
           <div className="flex flex-col items-start space-y-2 py-3 px-1 animate-in fade-in">
-            <div className="flex items-center space-x-2 text-xs text-neutral-400">
-              <div className="w-5 h-5 bg-neutral-900 border border-neutral-800 rounded-md flex items-center justify-center text-blue-400 animate-pulse">
+            <div className={`flex items-center space-x-2 text-xs ${theme === 'dark' ? 'text-neutral-400' : 'text-slate-500'}`}>
+              <div className={`w-5 h-5 rounded-md flex items-center justify-center animate-pulse ${
+                theme === 'dark'
+                  ? 'bg-neutral-900 border border-neutral-800 text-blue-400'
+                  : 'bg-slate-100 border border-slate-200 text-emerald-700'
+              }`}>
                 <Bot className="w-3 h-3" />
               </div>
-              <span className="font-semibold text-neutral-300">IntraMind AI</span>
-              <span className="text-[10px] text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+              <span className={`font-semibold ${theme === 'dark' ? 'text-neutral-300' : 'text-slate-800'}`}>IntraMind AI</span>
+              <span className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
+                theme === 'dark'
+                  ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                  : 'text-emerald-800 bg-emerald-50 border-emerald-200/80'
+              }`}>
                 Generating response...
               </span>
             </div>
-            <div className="flex items-center space-x-3 text-xs text-neutral-400 pl-7">
+            <div className={`flex items-center space-x-3 text-xs pl-7 ${theme === 'dark' ? 'text-neutral-400' : 'text-slate-500'}`}>
               <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.3s]" />
-                <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.15s]" />
-                <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" />
+                <div className={`w-2 h-2 rounded-full animate-bounce [animation-delay:-0.3s] ${
+                  theme === 'dark' ? 'bg-blue-400' : 'bg-emerald-600'
+                }`} />
+                <div className={`w-2 h-2 rounded-full animate-bounce [animation-delay:-0.15s] ${
+                  theme === 'dark' ? 'bg-blue-400' : 'bg-emerald-600'
+                }`} />
+                <div className={`w-2 h-2 rounded-full animate-bounce ${
+                  theme === 'dark' ? 'bg-blue-400' : 'bg-emerald-600'
+                }`} />
               </div>
-              <span className="text-neutral-300 font-medium animate-pulse">
+              <span className={`font-medium animate-pulse ${theme === 'dark' ? 'text-neutral-300' : 'text-slate-700'}`}>
                 {LOADING_STEPS[loadingStep]}
               </span>
             </div>
@@ -1169,36 +1323,50 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Modern Gemini-style bottom input bar during active chat (clean, no suggestions, no footer tags) */}
+      {/* Modern bottom input bar during active chat */}
       {messages.length > 0 && (
-        <div className="p-3 sm:p-4 bg-neutral-950 border-t border-neutral-850">
+        <div className={`p-3 sm:p-4 border-t-2 transition-colors duration-200 ${
+          theme === 'dark' ? 'bg-[#12151b] border-neutral-800' : 'bg-[#dcf0e2] border-emerald-300'
+        }`}>
           {/* Docked Upload Progress Indicator when active in chat view */}
           {uploadProgress && uploadProgress.stage !== 'idle' && (
             <div className="mb-3 max-w-3xl mx-auto">
               <UploadProgressIndicator
                 progress={uploadProgress}
                 onAbort={onAbortUpload || (() => {})}
-                theme="dark"
+                theme={theme}
                 variant="compact"
               />
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-            <div className="w-full relative rounded-3xl p-[1px] bg-white/10 focus-within:bg-white/20 transition-all shadow-xl">
-              <div className="w-full bg-[#1e1f20] hover:bg-[#202124] rounded-[23px] p-3.5 sm:p-4 flex flex-col text-left transition-colors">
+            <div className={`w-full relative rounded-3xl transition-all duration-200 border-2 shadow-md ${
+              theme === 'dark'
+                ? 'bg-[#181b20] hover:bg-[#1d2127] border-neutral-700 hover:border-neutral-600 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/15'
+                : 'bg-white hover:bg-emerald-50/40 border-emerald-300 hover:border-emerald-400 focus-within:border-emerald-600 focus-within:ring-4 focus-within:ring-emerald-500/15'
+            }`}>
+              <div className="w-full rounded-[22px] p-3.5 sm:p-4 flex flex-col text-left">
                 {/* Uploaded File Pill(s) inside top of prompt container */}
                 {documents.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-3">
                     {documents.map((doc) => (
                       <div
                         key={doc.id}
-                        className="relative inline-flex items-center gap-2.5 bg-[#2f3033] hover:bg-[#383a3e] border border-white/5 rounded-2xl py-1.5 px-3 pr-3.5 transition-all shadow-sm group"
+                        className={`relative inline-flex items-center gap-2.5 rounded-2xl py-1.5 px-3 pr-3.5 transition-all shadow-xs group border-2 ${
+                          theme === 'dark'
+                            ? 'bg-[#26282e] hover:bg-[#2e3138] border-neutral-700 text-white'
+                            : 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-800'
+                        }`}
                       >
-                        {/* Outline Document Icon matching screenshot */}
-                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-200 shrink-0">
+                        {/* Outline Document Icon */}
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                          theme === 'dark' ? 'text-slate-200' : 'text-emerald-700'
+                        }`}>
                           <svg
-                            className="w-4 h-4 text-slate-200 stroke-current fill-none stroke-[1.8]"
+                            className={`w-4 h-4 stroke-current fill-none stroke-[1.8] ${
+                              theme === 'dark' ? 'text-slate-200' : 'text-emerald-700'
+                            }`}
                             viewBox="0 0 24 24"
                           >
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1208,10 +1376,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                         {/* Title & File subtitle */}
                         <div className="flex flex-col min-w-0 pr-1 text-left">
-                          <span className="text-xs sm:text-sm font-semibold text-white truncate max-w-[160px] sm:max-w-[240px]">
+                          <span className={`text-xs sm:text-sm font-semibold truncate max-w-[160px] sm:max-w-[240px] ${
+                            theme === 'dark' ? 'text-white' : 'text-slate-800'
+                          }`}>
                             {doc.name}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-normal">
+                          <span className={`text-[10px] font-normal ${
+                            theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                          }`}>
                             File
                           </span>
                         </div>
@@ -1245,11 +1417,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
-                      className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                      className={`p-1.5 rounded-xl border transition-all cursor-pointer disabled:opacity-50 shrink-0 shadow-2xs ${
+                        theme === 'dark'
+                          ? 'bg-neutral-800 hover:bg-neutral-750 text-slate-200 hover:text-white border-neutral-700'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-300'
+                      }`}
                       title="Upload and index file (PDF, DOCX, Images, JSON, TXT)"
                     >
                       {isUploading ? (
-                        <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                        <Loader2 className={`w-5 h-5 animate-spin ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
                       ) : (
                         <Plus className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.8]" />
                       )}
@@ -1261,7 +1437,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       onChange={(e) => setInputQuery(e.target.value)}
                       placeholder="Ask anything"
                       disabled={isLoading || isUploading}
-                      className="bg-transparent border-0 text-sm sm:text-base text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-0 font-sans w-full leading-relaxed"
+                      className={`bg-transparent border-0 text-sm sm:text-base focus:outline-none focus:ring-0 font-sans w-full leading-relaxed ${
+                        theme === 'dark'
+                          ? 'text-slate-100 placeholder:text-slate-400'
+                          : 'text-slate-800 placeholder:text-slate-400'
+                      }`}
                     />
                   </div>
 
@@ -1270,20 +1450,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <button
                       type="button"
                       onClick={handleTogglePrecise}
-                      className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border select-none ${
+                      className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border select-none shadow-2xs ${
                         isPrecise
-                          ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
-                          : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 border-white/10'
+                          ? theme === 'dark'
+                            ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/60 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                            : 'bg-cyan-50 text-cyan-900 border-2 border-cyan-500 font-bold'
+                          : theme === 'dark'
+                            ? 'bg-neutral-800 hover:bg-neutral-750 text-slate-300 hover:text-white border-neutral-700'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-300'
                       }`}
                       title="Precise Output: Generate concise 2 to 3 line bullet point answers"
                     >
-                      <Target className={`w-3.5 h-3.5 ${isPrecise ? 'text-cyan-300 animate-pulse' : 'text-slate-400'}`} />
+                      <Target className={`w-3.5 h-3.5 ${isPrecise ? (theme === 'dark' ? 'text-cyan-400 animate-pulse' : 'text-emerald-700') : 'text-slate-500'}`} />
                       <span className="hidden sm:inline">Precise Output</span>
                       <span
-                        className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                        className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold border ${
                           isPrecise
-                            ? 'bg-cyan-400/30 text-cyan-200 border border-cyan-400/40'
-                            : 'bg-neutral-800 text-neutral-400'
+                            ? theme === 'dark' ? 'bg-cyan-400/30 text-cyan-200 border-cyan-400/40' : 'bg-cyan-200 text-cyan-900 border-cyan-400'
+                            : theme === 'dark' ? 'bg-neutral-900 text-neutral-400 border-neutral-750' : 'bg-slate-200 text-slate-700 border-slate-300'
                         }`}
                       >
                         {isPrecise ? '2-3 Bullets' : 'Off'}
@@ -1293,7 +1477,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <button
                       type="submit"
                       disabled={isLoading || (!inputQuery.trim() && documents.length === 0)}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1a73e8] hover:bg-[#1557b0] disabled:bg-slate-700 disabled:opacity-40 text-white flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+                      className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all shadow-sm active:scale-95 cursor-pointer border ${
+                        theme === 'dark'
+                          ? 'bg-[#1a73e8] hover:bg-[#1557b0] border-indigo-400/40 disabled:bg-neutral-800 disabled:border-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed text-white'
+                          : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700 disabled:bg-slate-100 disabled:border-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed text-white'
+                      }`}
                       title="Send"
                     >
                       <ArrowUp className="w-5 h-5 stroke-[2.5]" />
@@ -1337,6 +1525,7 @@ interface StreamingAssistantMessageProps {
   renderHighlightedContent: (msg: ChatMessage, overrideText?: string) => React.ReactNode;
   completedMessageIdsRef: React.MutableRefObject<Set<string>>;
   onStreamStep?: () => void;
+  theme?: 'light' | 'dark';
 }
 
 const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
@@ -1352,6 +1541,7 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
   isSourceExpanded,
   completedMessageIdsRef,
   onStreamStep,
+  theme = 'dark',
 }) => {
   // Pre-clean boilerplate phrase, diagrams, and bracket citations once from the message while protecting legitimate code blocks
   const fullContent = useMemo(() => {
@@ -1456,7 +1646,7 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
   // Custom markdown components supporting interactive inline citation links
   const customMarkdownComponents = useMemo(() => {
     return {
-      ...markdownComponents,
+      ...getMarkdownComponents(theme),
       a: ({ href, children }: any) => {
         if (href && href.startsWith('#cite-')) {
           const sourceNum = parseInt(href.replace('#cite-', ''), 10);
@@ -1476,10 +1666,14 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
               }}
               className={`inline-flex items-center mx-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-mono font-bold transition-all cursor-pointer shadow-2xs hover:scale-110 active:scale-95 align-baseline ${
                 isSelected
-                  ? 'bg-emerald-500/35 text-emerald-200 border-2 border-emerald-400 ring-2 ring-emerald-400/40 shadow-sm shadow-emerald-500/30 scale-105'
+                  ? 'bg-emerald-600 text-white border-2 border-emerald-700 ring-2 ring-emerald-400/40 shadow-xs scale-105'
                   : isHighlightCitationsEnabled
-                    ? 'bg-indigo-500/25 hover:bg-indigo-500/45 text-cyan-300 border border-indigo-400/40 ring-1 ring-indigo-400/30'
-                    : 'bg-indigo-500/15 text-indigo-300 border border-indigo-400/25'
+                    ? theme === 'dark'
+                      ? 'bg-indigo-500/25 hover:bg-indigo-500/45 text-cyan-300 border border-indigo-400/40 ring-1 ring-indigo-400/30'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 shadow-2xs'
+                    : theme === 'dark'
+                      ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-400/25'
+                      : 'bg-slate-100 text-slate-700 border border-slate-200'
               }`}
               title={`Click to visually overlay source excerpt for [Source ${sourceNum}]`}
             >
@@ -1492,14 +1686,14 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sky-400 underline hover:text-sky-300 transition-colors"
+            className="text-sky-600 dark:text-sky-400 underline hover:text-sky-700 dark:hover:text-sky-300 transition-colors"
           >
             {children}
           </a>
         );
       },
     };
-  }, [msg.citations, onTriggerCitationOverlay, selectedCitationSourceId, isHighlightCitationsEnabled]);
+  }, [theme, msg.citations, onTriggerCitationOverlay, selectedCitationSourceId, isHighlightCitationsEnabled]);
 
   const formattedDisplayedContent = useMemo(() => {
     if (isTypingComplete) {
@@ -1514,6 +1708,8 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
     return raw;
   }, [isTypingComplete, fullContent, displayedContent]);
 
+  const isDark = theme === 'dark';
+
   return (
     <div
       className="flex flex-col items-start w-full my-3 px-1 max-w-4xl animate-in fade-in duration-200"
@@ -1524,25 +1720,35 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
       }}
     >
       {/* Sender Badge & Actions Bar */}
-      <div className="flex items-center justify-between w-full mb-1 text-xs text-neutral-400">
+      <div className={`flex items-center justify-between w-full mb-1 text-xs ${isDark ? 'text-neutral-400' : 'text-slate-500'}`}>
         <div className="flex items-center space-x-2">
-          <div className="w-5 h-5 bg-neutral-900 border border-neutral-800 rounded-md flex items-center justify-center text-blue-400 shadow-2xs">
+          <div className={`w-5 h-5 rounded-md flex items-center justify-center shadow-2xs ${
+            isDark ? 'bg-neutral-900 border border-neutral-800 text-blue-400' : 'bg-[#edf1f5] border border-slate-300/60 text-emerald-700'
+          }`}>
             <Bot className="w-3 h-3" />
           </div>
-          <span className="text-neutral-300 font-bold text-xs">IntraMind AI</span>
+          <span className={`font-bold text-xs ${isDark ? 'text-neutral-300' : 'text-slate-700'}`}>IntraMind AI</span>
 
           {!isTypingComplete ? (
-            <span className="inline-flex items-center gap-1.5 text-[10px] text-sky-400 font-semibold bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/25 animate-pulse">
+            <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border animate-pulse ${
+              isDark
+                ? 'text-sky-400 bg-sky-500/10 border-sky-500/25'
+                : 'text-emerald-800 bg-emerald-50 border-emerald-200/80'
+            }`}>
               <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-400"></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  isDark ? 'bg-sky-400' : 'bg-emerald-500'
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                  isDark ? 'bg-sky-400' : 'bg-emerald-600'
+                }`}></span>
               </span>
               Streaming response...
             </span>
           ) : (
             msg.reasoningTimeMs && (
-              <span className="text-[10px] text-neutral-500 font-mono flex items-center gap-0.5">
-                <Clock className="w-3 h-3 text-neutral-500" />
+              <span className={`text-[10px] font-mono flex items-center gap-0.5 ${isDark ? 'text-neutral-500' : 'text-slate-400'}`}>
+                <Clock className="w-3 h-3" />
                 {msg.reasoningTimeMs}ms
               </span>
             )
@@ -1557,7 +1763,11 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
                 e.stopPropagation();
                 handleSkipTyping();
               }}
-              className="inline-flex items-center gap-1 text-[10px] text-sky-400 hover:text-white bg-sky-500/10 hover:bg-sky-500/20 px-2 py-0.5 rounded-md border border-sky-500/25 transition-all cursor-pointer font-medium active:scale-95 shadow-xs"
+              className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer font-medium active:scale-95 shadow-2xs ${
+                isDark
+                  ? 'text-sky-400 hover:text-white bg-sky-500/10 hover:bg-sky-500/20 border-sky-500/25'
+                  : 'text-slate-600 hover:text-slate-800 bg-[#edf1f5] hover:bg-[#e2e7ec] border-slate-300/60'
+              }`}
               title="Skip typing animation and show full answer immediately"
             >
               <FastForward className="w-3 h-3" />
@@ -1574,7 +1784,9 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
             className={`text-[11px] flex items-center gap-1.5 cursor-pointer font-medium px-2 py-0.5 rounded-md transition-all border ${
               copiedMsgId === msg.id
                 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80 border-transparent hover:border-neutral-700'
+                : isDark
+                  ? 'text-neutral-400 hover:text-white hover:bg-neutral-800/80 border-transparent hover:border-neutral-700'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-[#edf1f5] border-transparent hover:border-slate-300/60'
             }`}
             title="Copy response to clipboard"
           >
@@ -1594,20 +1806,22 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
       </div>
 
       {/* Direct Content Area on Canvas - Rendered with Markdown */}
-      <div className="w-full text-sm sm:text-base text-neutral-200 leading-relaxed py-1" id={`msg-content-${msg.id}`}>
+      <div className={`w-full text-sm sm:text-base leading-relaxed py-1 ${isDark ? 'text-neutral-200' : 'text-slate-700'}`} id={`msg-content-${msg.id}`}>
         <Markdown remarkPlugins={[remarkGfm]} components={customMarkdownComponents}>
           {formattedDisplayedContent}
         </Markdown>
         {!isTypingComplete && (
           <span
-            className="inline-block w-2 h-4.5 bg-sky-400 align-middle ml-1 rounded-xs animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.7)]"
+            className="inline-block w-2 h-4.5 bg-emerald-600 dark:bg-sky-400 align-middle ml-1 rounded-xs animate-pulse shadow-[0_0_8px_rgba(5,150,105,0.5)] dark:shadow-[0_0_8px_rgba(56,189,248,0.7)]"
             aria-label="typing caret"
           />
         )}
       </div>
 
       {/* Assistant Message Actions Toolbar - Dedicated Copy and Overlay Citations Buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-2 w-full mt-2.5 pt-2 border-t border-neutral-850/60 text-xs">
+      <div className={`flex flex-wrap items-center justify-between gap-2 w-full mt-2.5 pt-2 border-t text-xs ${
+        isDark ? 'border-neutral-800 text-neutral-400' : 'border-slate-200/80 text-slate-500'
+      }`}>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -1618,7 +1832,9 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-xs active:scale-95 ${
               copiedMsgId === msg.id
                 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-emerald-950/20'
-                : 'bg-neutral-900/90 hover:bg-neutral-800 text-neutral-300 hover:text-white border-neutral-800 hover:border-neutral-700'
+                : isDark
+                  ? 'bg-neutral-900/90 hover:bg-neutral-800 text-neutral-300 hover:text-white border-neutral-800 hover:border-neutral-700'
+                  : 'bg-[#edf1f5] hover:bg-[#e2e7ec] text-slate-700 hover:text-slate-800 border-slate-300/60 hover:border-slate-400/60'
             }`}
             title="Copy assistant response to clipboard"
           >
@@ -1629,7 +1845,7 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
               </>
             ) : (
               <>
-                <Copy className="w-3.5 h-3.5 text-neutral-400" />
+                <Copy className="w-3.5 h-3.5" />
                 <span>Copy to Clipboard</span>
               </>
             )}
@@ -1645,17 +1861,19 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-xs active:scale-95 ${
                 selectedCitationSourceId
                   ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/60 ring-1 ring-emerald-400/40'
-                  : 'bg-indigo-950/60 hover:bg-indigo-900/80 text-cyan-300 hover:text-cyan-200 border-indigo-500/30 hover:border-indigo-400/50'
+                  : isDark
+                    ? 'bg-indigo-950/60 hover:bg-indigo-900/80 text-cyan-300 hover:text-cyan-200 border-indigo-500/30 hover:border-indigo-400/50'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 hover:text-emerald-900 border-emerald-200/90 hover:border-emerald-300 shadow-2xs'
               }`}
               title="Visually overlay source text excerpts from retrieved document chunks"
             >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <Layers className={`w-3.5 h-3.5 ${isDark ? 'text-cyan-400' : 'text-emerald-700'}`} />
               <span>Overlay Citations ({msg.citations.length})</span>
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-neutral-500 font-mono">
+        <div className={`flex items-center gap-2 text-[11px] font-mono ${isDark ? 'text-neutral-500' : 'text-slate-400'}`}>
           <span>{fullContent.split(/\s+/).filter(Boolean).length} words</span>
           {msg.reasoningTimeMs && (
             <>
@@ -1671,9 +1889,13 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
 
       {/* Interactive Citation Chips */}
       {isTypingComplete && msg.citations && msg.citations.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-neutral-850/80 animate-in fade-in duration-300">
-          <span className="text-[11px] text-neutral-400 font-semibold flex items-center gap-1 mr-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+        <div className={`flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t animate-in fade-in duration-300 ${
+          isDark ? 'border-neutral-850/80' : 'border-slate-200/80'
+        }`}>
+          <span className={`text-[11px] font-semibold flex items-center gap-1 mr-1 ${
+            isDark ? 'text-neutral-400' : 'text-slate-600'
+          }`}>
+            <ShieldCheck className={`w-3.5 h-3.5 ${isDark ? 'text-sky-400' : 'text-emerald-700'}`} />
             <span>Verified Sources:</span>
           </span>
           {msg.citations.map((c) => (
@@ -1683,6 +1905,7 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
               onSelectCitation={onTriggerCitationOverlay}
               isSelected={selectedCitationSourceId === c.sourceId}
               isHighlighted={isHighlightCitationsEnabled}
+              theme={theme}
             />
           ))}
         </div>
@@ -1690,27 +1913,37 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
 
       {/* Retrieved Vector Chunks Accordion */}
       {isTypingComplete && msg.retrievedChunks && msg.retrievedChunks.length > 0 && (
-        <div className="w-full mt-3 pt-2 border-t border-neutral-900 animate-in fade-in duration-300">
+        <div className={`w-full mt-3 pt-2 border-t animate-in fade-in duration-300 ${
+          isDark ? 'border-neutral-900' : 'border-slate-200/80'
+        }`}>
           <button
             onClick={(e) => {
               e.stopPropagation();
               toggleSourceAccordion(msg.id);
             }}
-            className="flex items-center justify-between text-xs font-medium text-neutral-400 hover:text-neutral-200 bg-neutral-950 hover:bg-neutral-900 px-3.5 py-2 rounded-xl border border-neutral-850 transition-all cursor-pointer w-full"
+            className={`flex items-center justify-between text-xs font-medium px-3.5 py-2 rounded-xl border transition-all cursor-pointer w-full ${
+              isDark
+                ? 'text-neutral-400 hover:text-neutral-200 bg-neutral-950 hover:bg-neutral-900 border-neutral-850'
+                : 'text-slate-700 hover:text-slate-900 bg-[#edf1f5] hover:bg-[#e2e7ec] border-slate-300/60 shadow-xs'
+            }`}
           >
             <span className="flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5 text-blue-400" />
+              <Layers className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-emerald-700'}`} />
               <span>Full Source Passages ({msg.retrievedChunks.length} chunks analyzed)</span>
             </span>
             {isSourceExpanded ? (
-              <ChevronUp className="w-3.5 h-3.5 text-neutral-400" />
+              <ChevronUp className={`w-3.5 h-3.5 ${isDark ? 'text-neutral-400' : 'text-slate-500'}`} />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
+              <ChevronDown className={`w-3.5 h-3.5 ${isDark ? 'text-neutral-400' : 'text-slate-500'}`} />
             )}
           </button>
 
           {isSourceExpanded && (
-            <div className="mt-2 space-y-2 p-3 bg-neutral-950 rounded-xl border border-neutral-850 text-xs text-neutral-300 animate-in fade-in">
+            <div className={`mt-2 space-y-2 p-3 rounded-xl border text-xs animate-in fade-in ${
+              isDark
+                ? 'bg-neutral-950 border-neutral-850 text-neutral-300'
+                : 'bg-[#f1f4f8] border-slate-200/80 text-slate-700 shadow-inner'
+            }`}>
               {msg.retrievedChunks.map((ret, idx) => {
                 const isSelected = selectedCitationSourceId === idx + 1;
                 return (
@@ -1731,18 +1964,28 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
                     }}
                     className={`p-3 rounded-lg border cursor-pointer transition-all hover:scale-[1.01] ${
                       isSelected
-                        ? 'bg-emerald-950/40 border-emerald-500/60 ring-2 ring-emerald-500/40 shadow-lg'
-                        : 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800'
+                        ? isDark
+                          ? 'bg-emerald-950/40 border-emerald-500/60 ring-2 ring-emerald-500/40 shadow-lg'
+                          : 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/40 shadow-xs'
+                        : isDark
+                          ? 'bg-neutral-900 hover:bg-neutral-850 border-neutral-800'
+                          : 'bg-[#edf1f5] hover:bg-[#e2e7ec] border-slate-200/80 shadow-xs'
                     }`}
                     title="Click to visually overlay source excerpt"
                   >
-                    <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 mb-1">
-                      <span className="font-bold text-neutral-200 flex items-center gap-1.5">
+                    <div className={`flex items-center justify-between text-[11px] font-mono mb-1 ${
+                      isDark ? 'text-neutral-400' : 'text-slate-500'
+                    }`}>
+                      <span className={`font-bold flex items-center gap-1.5 ${
+                        isDark ? 'text-neutral-200' : 'text-slate-800'
+                      }`}>
                         <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] ${
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${
                             isSelected
-                              ? 'bg-emerald-500 text-slate-950 font-extrabold'
-                              : 'bg-neutral-800 text-neutral-300'
+                              ? 'bg-emerald-600 text-white'
+                              : isDark
+                                ? 'bg-neutral-800 text-neutral-300'
+                                : 'bg-slate-200 text-slate-800'
                           }`}
                         >
                           Source [{idx + 1}]
@@ -1754,19 +1997,29 @@ const StreamingAssistantMessage: React.FC<StreamingAssistantMessageProps> = ({
                       <span
                         className={`font-bold px-2 py-0.5 rounded border text-[10px] ${
                           isSelected
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : 'text-blue-400 bg-neutral-950 border-neutral-800'
+                            ? isDark
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : isDark
+                              ? 'text-blue-400 bg-neutral-950 border-neutral-800'
+                              : 'text-emerald-800 bg-emerald-50 border-emerald-200'
                         }`}
                       >
                         {ret.scorePercentage}% Vector Match
                       </span>
                     </div>
-                    <p className="text-[11px] text-neutral-300 line-clamp-3 italic leading-relaxed">
+                    <p className={`text-[11px] line-clamp-3 italic leading-relaxed ${
+                      isDark ? 'text-neutral-300' : 'text-slate-700'
+                    }`}>
                       "{ret.chunk.text}"
                     </p>
-                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-neutral-500">
+                    <div className={`mt-1.5 flex items-center justify-between text-[10px] ${
+                      isDark ? 'text-neutral-500' : 'text-slate-400'
+                    }`}>
                       <span>Chunk #{ret.chunk.chunkIndex}</span>
-                      <span className="text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1">
+                      <span className={`font-semibold flex items-center gap-1 ${
+                        isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-emerald-700 hover:text-emerald-800'
+                      }`}>
                         Overlay Excerpt →
                       </span>
                     </div>

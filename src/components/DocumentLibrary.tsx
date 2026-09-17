@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import {
-  FileText, Trash2, CheckSquare, Square, Upload, Sparkles, AlertCircle,
+  FileText, Trash2, CheckSquare, Square, Upload, AlertCircle,
   HardDrive, Layers, FileCode, Copy, Check, X, Search, FileImage, FileSpreadsheet,
-  FileType, Filter, Loader2, CheckCircle2
+  FileType, Filter, Loader2, CheckCircle2, FileCheck
 } from 'lucide-react';
 import { PDFDocument, UploadProgressState } from '../types';
 import { fetchApi } from '../lib/api';
@@ -146,15 +146,25 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   const allSelected = selectedDocIds.length === 0 || selectedDocIds.length === documents.length;
 
   return (
-    <div className="rounded-2xl p-3.5 sm:p-5 flex flex-col h-full min-h-0 space-y-3 shadow-2xl overflow-hidden border bg-neutral-950 border-neutral-850 text-neutral-100">
+    <div className={`rounded-2xl p-3.5 sm:p-5 flex flex-col h-full min-h-0 space-y-3 shadow-xl overflow-hidden border-2 transition-colors ${
+      theme === 'dark'
+        ? 'bg-neutral-950 border-neutral-800 text-neutral-100 shadow-2xl ring-1 ring-white/5'
+        : 'bg-[#edf7f0] border-emerald-300/90 text-slate-800 shadow-md ring-1 ring-emerald-900/5'
+    }`}>
       {/* Header section */}
-      <div className="flex items-center justify-between pb-2.5 border-b shrink-0 border-neutral-850">
+      <div className={`flex items-center justify-between pb-2.5 border-b-2 shrink-0 ${
+        theme === 'dark' ? 'border-neutral-800' : 'border-emerald-300'
+      }`}>
         <div>
-          <h2 className="text-sm font-bold flex items-center gap-2 text-white">
-            <Layers className="w-4 h-4 text-indigo-400" />
+          <h2 className={`text-sm font-bold flex items-center gap-2 ${
+            theme === 'dark' ? 'text-white' : 'text-slate-800'
+          }`}>
+            <Layers className={`w-4 h-4 ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
             Document Library ({documents.length})
           </h2>
-          <p className="text-[11px] mt-0.5 text-neutral-400">
+          <p className={`text-[11px] mt-0.5 ${
+            theme === 'dark' ? 'text-neutral-400' : 'text-slate-500'
+          }`}>
             Active RAG Scope: {selectedDocIds.length === 0 ? 'All Documents' : `${selectedDocIds.length} Selected`}
           </p>
         </div>
@@ -162,7 +172,11 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
         {documents.length > 0 && (
           <button
             onClick={allSelected ? onDeselectAllDocs : onSelectAllDocs}
-            className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-850 border-neutral-800"
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+              theme === 'dark'
+                ? 'text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-850 border-neutral-800'
+                : 'text-slate-800 hover:text-slate-950 bg-white hover:bg-emerald-50/80 border-emerald-300 shadow-2xs'
+            }`}
           >
             {allSelected ? 'Clear Scope' : 'Select All'}
           </button>
@@ -260,7 +274,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
             className={`relative flex-1 border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-4 group overflow-hidden shadow-xl ${
               theme === 'dark'
                 ? 'border-indigo-500/40 hover:border-indigo-400 bg-gradient-to-b from-slate-900/95 via-slate-900 to-indigo-950/80 hover:bg-slate-900 text-white shadow-indigo-950/50'
-                : 'border-indigo-300 hover:border-indigo-500 bg-gradient-to-b from-indigo-50/80 via-white to-purple-50/80 hover:bg-indigo-50/90 text-slate-900 shadow-indigo-500/10'
+                : 'border-indigo-300/80 hover:border-indigo-400 bg-gradient-to-b from-indigo-50/60 via-[#edf1f5] to-purple-50/60 hover:bg-indigo-50/80 text-slate-800 shadow-xs'
             }`}
           >
             {/* Pleasant Ambient SVG Wave Animation Overlay */}
@@ -317,7 +331,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                 <Upload className="w-9 h-9" />
               </div>
               <div className="max-w-md space-y-1.5">
-                <h3 className={`text-base sm:text-lg font-extrabold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                <h3 className={`text-base sm:text-lg font-extrabold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>
                   Drag & Drop your files here to Upload
                 </h3>
                 <p className={`text-xs leading-relaxed font-medium ${theme === 'dark' ? 'text-indigo-200/90' : 'text-slate-600'}`}>
@@ -364,7 +378,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
               className={`relative border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition-all group shrink-0 overflow-hidden shadow-sm ${
                 theme === 'dark'
                   ? 'border-indigo-500/40 hover:border-indigo-400 bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950/70 text-white shadow-xs'
-                  : 'border-indigo-300 hover:border-indigo-500 bg-gradient-to-b from-indigo-50/70 via-white to-purple-50/70 text-slate-900 shadow-xs'
+                  : 'border-indigo-300/80 hover:border-indigo-400 bg-gradient-to-b from-indigo-50/60 via-[#edf1f5] to-purple-50/60 text-slate-800 shadow-xs'
               }`}
             >
               {/* Ambient Wave Layer for Compact Box */}
@@ -397,7 +411,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   <Upload className="w-4 h-4" />
                 </div>
                 <div className="text-left">
-                  <p className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <p className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>
                     Upload additional files (PDF, DOCX, PNG, JSON, TXT)
                   </p>
                   <p className={`text-[10px] ${theme === 'dark' ? 'text-indigo-200/80' : 'text-slate-500'}`}>
@@ -417,20 +431,20 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                 placeholder="Filter files by name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`w-full pl-8 pr-3 py-1.5 border-2 rounded-lg text-xs font-medium focus:outline-none focus:border-indigo-500 antialiased shadow-2xs ${
+                className={`w-full pl-8 pr-3 py-1.5 border-2 rounded-lg text-xs font-medium focus:outline-none focus:border-emerald-600 antialiased shadow-2xs ${
                   theme === 'dark'
-                    ? 'bg-slate-950 border-slate-700 text-white placeholder:text-slate-500'
-                    : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+                    ? 'bg-slate-950 border-neutral-750 text-white placeholder:text-slate-500'
+                    : 'bg-white focus:bg-white border-emerald-300 text-slate-800 placeholder:text-slate-400'
                 }`}
               />
             </div>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className={`px-2.5 py-1.5 border rounded-lg text-xs focus:outline-none cursor-pointer font-medium ${
+              className={`px-2.5 py-1.5 border-2 rounded-lg text-xs focus:outline-none cursor-pointer font-medium ${
                 theme === 'dark'
-                  ? 'bg-slate-950 border-slate-700 text-slate-200'
-                  : 'bg-slate-50 border-slate-200 text-slate-700'
+                  ? 'bg-slate-950 border-neutral-750 text-slate-200'
+                  : 'bg-white border-emerald-300 text-slate-800'
               }`}
             >
               <option value="all">All Formats</option>
@@ -455,14 +469,14 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
             return (
               <div
                 key={doc.id}
-                className={`p-3 rounded-xl border transition-all ${
+                className={`p-3 rounded-xl border-2 transition-all ${
                   isSelected
                     ? theme === 'dark'
-                      ? 'bg-indigo-950/60 border-indigo-700 text-slate-100 shadow-2xs'
-                      : 'bg-sky-50/40 border-sky-300 text-slate-900 shadow-2xs'
+                      ? 'bg-indigo-950/60 border-indigo-700 text-slate-100 shadow-xs'
+                      : 'bg-white border-emerald-500 text-slate-800 shadow-xs ring-1 ring-emerald-500/20'
                     : theme === 'dark'
                       ? 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700'
-                      : 'bg-white border-slate-200 text-slate-800 opacity-75 hover:opacity-100'
+                      : 'bg-white/90 border-emerald-300/80 text-slate-700 hover:bg-white hover:border-emerald-400'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -470,13 +484,13 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   <div className="flex items-start space-x-2.5 min-w-0 flex-1">
                     <button
                       onClick={() => onToggleDocSelection(doc.id)}
-                      className="mt-1 text-indigo-500 hover:text-indigo-400 cursor-pointer shrink-0"
+                      className="mt-1 cursor-pointer shrink-0"
                       title={isSelected ? 'Remove from query scope' : 'Include in query scope'}
                     >
                       {isSelected ? (
-                        <CheckSquare className="w-4 h-4 text-indigo-500" />
+                        <CheckSquare className={`w-4 h-4 ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
                       ) : (
-                        <Square className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-600' : 'text-slate-300'}`} />
+                        <Square className={`w-4 h-4 ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`} />
                       )}
                     </button>
 
@@ -506,8 +520,10 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                           {doc.pageCount} {doc.pageCount === 1 ? 'Page' : 'Pages'}
                         </span>
                         <span>•</span>
-                        <span className="flex items-center gap-1 font-mono text-sky-700 font-medium">
-                          <Layers className="w-3 h-3 text-sky-600" />
+                        <span className={`flex items-center gap-1 font-mono font-medium ${
+                          theme === 'dark' ? 'text-sky-400' : 'text-emerald-800'
+                        }`}>
+                          <Layers className="w-3 h-3" />
                           {doc.chunkCount} Chunks
                         </span>
                       </div>
@@ -519,25 +535,33 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                     <button
                       onClick={() => handleSummarize(doc.id)}
                       disabled={loadingSummaryId === doc.id}
-                      className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-semibold rounded-md border border-sky-200 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50 ${
+                        theme === 'dark'
+                          ? 'bg-sky-950/60 hover:bg-sky-900 text-sky-300 border-sky-800/60'
+                          : 'bg-white hover:bg-emerald-50/80 text-slate-800 border-emerald-300 hover:border-emerald-400 shadow-2xs'
+                      }`}
                       title="Generate 3-bullet-point AI summary with Gemini"
                     >
                       {loadingSummaryId === doc.id ? (
                         <>
-                          <Sparkles className="w-3 h-3 text-sky-600 animate-spin" />
+                          <Loader2 className={`w-3 h-3 animate-spin ${theme === 'dark' ? 'text-sky-400' : 'text-emerald-700'}`} />
                           <span>Summarizing...</span>
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-3 h-3 text-sky-600" />
-                          <span>Summarize Document</span>
+                          <FileCheck className={`w-3 h-3 ${theme === 'dark' ? 'text-sky-400' : 'text-emerald-700'}`} />
+                          <span>Summarize</span>
                         </>
                       )}
                     </button>
 
                     <button
                       onClick={() => onViewDocInReader(doc)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-md border border-slate-200 transition-colors cursor-pointer"
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-colors cursor-pointer ${
+                        theme === 'dark'
+                          ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                          : 'bg-white hover:bg-emerald-50/80 text-slate-800 border-emerald-300 hover:border-emerald-400 shadow-2xs'
+                      }`}
                     >
                       Read
                     </button>
@@ -554,16 +578,26 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
 
                 {/* Expanded Summary Box */}
                 {summaries[doc.id] && expandedSummaryId === doc.id && (
-                  <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs text-slate-800 relative animate-in fade-in">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                      <div className="flex items-center space-x-1.5 font-bold text-slate-900">
-                        <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                  <div className={`mt-3 p-3.5 rounded-xl space-y-2 text-xs relative animate-in fade-in border ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 text-slate-200'
+                      : 'bg-[#f1f4f8] border-slate-300/70 text-slate-700'
+                  }`}>
+                    <div className={`flex items-center justify-between pb-2 border-b ${
+                      theme === 'dark' ? 'border-slate-800' : 'border-slate-300/60'
+                    }`}>
+                      <div className={`flex items-center space-x-1.5 font-bold ${
+                        theme === 'dark' ? 'text-slate-100' : 'text-slate-800'
+                      }`}>
+                        <FileCheck className="w-3.5 h-3.5 text-sky-600" />
                         <span>3-Bullet AI Summary</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <button
                           onClick={() => handleCopySummary(summaries[doc.id], doc.id)}
-                          className="px-2 py-0.5 text-slate-600 hover:text-slate-900 rounded hover:bg-slate-200/60 transition-colors flex items-center gap-1 text-[10px] cursor-pointer font-medium"
+                          className={`px-2 py-0.5 rounded transition-colors flex items-center gap-1 text-[10px] cursor-pointer font-medium ${
+                            theme === 'dark' ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                          }`}
                         >
                           {copiedSummaryId === doc.id ? (
                             <>
@@ -579,13 +613,17 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                         </button>
                         <button
                           onClick={() => setExpandedSummaryId(null)}
-                          className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 transition-colors cursor-pointer"
+                          className={`p-1 rounded transition-colors cursor-pointer ${
+                            theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                          }`}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-wrap pt-1">
+                    <div className={`text-xs leading-relaxed font-sans whitespace-pre-wrap pt-1 ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                    }`}>
                       {summaries[doc.id]}
                     </div>
                   </div>

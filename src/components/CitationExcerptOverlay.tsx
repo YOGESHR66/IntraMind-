@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ShieldCheck,
   Quote,
-  Sparkles,
   BookOpen,
   Search,
 } from 'lucide-react';
@@ -140,7 +139,11 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
               return (
                 <mark
                   key={i}
-                  className="bg-emerald-500/35 text-emerald-200 font-semibold px-1 py-0.5 rounded border-b border-emerald-400 shadow-xs"
+                  className={`font-semibold px-1 py-0.5 rounded border-b shadow-2xs ${
+                    theme === 'dark'
+                      ? 'bg-emerald-500/35 text-emerald-200 border-emerald-400'
+                      : 'bg-emerald-100 text-emerald-950 border-emerald-500'
+                  }`}
                 >
                   {part}
                 </mark>
@@ -165,37 +168,45 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
       onClick={onClose}
     >
       <div
-        className={`relative w-full max-w-3xl max-h-[85vh] rounded-2xl flex flex-col shadow-2xl border transition-all animate-in zoom-in-95 duration-200 overflow-hidden ${
+        className={`relative w-full max-w-3xl max-h-[85vh] rounded-3xl flex flex-col shadow-2xl border-2 transition-all animate-in zoom-in-95 duration-200 overflow-hidden ${
           theme === 'dark'
             ? 'bg-[#0f1117] border-indigo-900/50 text-neutral-100 shadow-indigo-950/40'
-            : 'bg-white border-slate-200 text-slate-900 shadow-xl'
+            : 'bg-[#edf7f0] border-emerald-300/90 text-slate-800 shadow-2xl'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}
         <div
-          className={`px-4 sm:px-6 py-3.5 flex items-center justify-between border-b shrink-0 ${
+          className={`px-4 sm:px-6 py-3.5 flex items-center justify-between border-b-2 shrink-0 ${
             theme === 'dark'
               ? 'bg-[#151823] border-neutral-800 text-white'
-              : 'bg-slate-50 border-slate-200 text-slate-900'
+              : 'bg-[#dcf0e2] border-emerald-300 text-slate-800'
           }`}
         >
           <div className="flex items-center space-x-2.5 min-w-0 flex-1">
-            <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-500/25 text-cyan-300 border border-indigo-400/40 shrink-0 shadow-xs flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold shrink-0 shadow-xs flex items-center gap-1.5 border-2 ${
+              theme === 'dark'
+                ? 'bg-indigo-500/25 text-cyan-300 border-indigo-400/40'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+            }`}>
+              <ShieldCheck className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-cyan-400' : 'text-emerald-700'}`} />
               <span>Source [{citation.sourceId}]</span>
             </span>
 
             <div className="truncate flex items-center gap-2 min-w-0">
-              <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
+              <FileText className={`w-4 h-4 shrink-0 ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
               <span className="font-bold text-sm truncate" title={citation.docName}>
                 {citation.docName}
               </span>
               <span
-                className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${
+                className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 border-2 ${
                   similarityScore >= 80
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    ? theme === 'dark'
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : theme === 'dark'
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                      : 'bg-slate-100 text-slate-800 border-slate-300'
                 }`}
               >
                 {similarityScore}% Match
@@ -238,7 +249,9 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                theme === 'dark' ? 'hover:bg-white/10 text-neutral-400 hover:text-white border-neutral-750' : 'hover:bg-slate-200 text-slate-600 hover:text-slate-900 border-slate-300'
+              }`}
               title="Close overlay (Esc)"
             >
               <X className="w-4 h-4" />
@@ -248,21 +261,23 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
 
         {/* Metadata sub-bar */}
         <div
-          className={`px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between text-xs border-b shrink-0 ${
+          className={`px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between text-xs border-b-2 shrink-0 ${
             theme === 'dark'
-              ? 'bg-[#11131c] border-neutral-850 text-neutral-400'
-              : 'bg-slate-100/70 border-slate-200 text-slate-600'
+              ? 'bg-[#11131c] border-neutral-800 text-neutral-400'
+              : 'bg-[#e2f3e7] border-emerald-300 text-slate-600'
           }`}
         >
           <div className="flex items-center space-x-3">
             <span className="flex items-center gap-1 font-mono">
-              <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+              <BookOpen className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
               <span>Page {citation.pageNumber}</span>
             </span>
             <span>•</span>
             <span className="font-mono">Chunk #{citation.chunkIndex}</span>
             <span>•</span>
-            <span className="flex items-center gap-1 text-emerald-400 font-medium">
+            <span className={`flex items-center gap-1 font-medium ${
+              theme === 'dark' ? 'text-emerald-400' : 'text-emerald-700'
+            }`}>
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Verified Document Grounding</span>
             </span>
@@ -271,16 +286,16 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
           <div className="flex items-center space-x-2 mt-1 sm:mt-0">
             {/* Quick search/filter in excerpt */}
             <div className="relative flex items-center">
-              <Search className="w-3 h-3 text-neutral-500 absolute left-2 pointer-events-none" />
+              <Search className="w-3 h-3 text-neutral-400 absolute left-2 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Highlight word..."
                 value={filterTerm}
                 onChange={(e) => setFilterTerm(e.target.value)}
-                className={`text-[11px] pl-6 pr-2 py-0.5 rounded-md border transition-all focus:outline-hidden ${
+                className={`text-[11px] pl-6 pr-2 py-0.5 rounded-md border-2 transition-all focus:outline-hidden ${
                   theme === 'dark'
                     ? 'bg-neutral-900 border-neutral-750 text-neutral-200 focus:border-indigo-500'
-                    : 'bg-white border-slate-300 text-slate-900 focus:border-indigo-600'
+                    : 'bg-white focus:bg-white border-emerald-300 text-slate-800 focus:border-emerald-600'
                 }`}
               />
               {filterTerm && (
@@ -300,18 +315,18 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 max-h-[55vh]">
           {/* Highlight Notification / Instruction */}
           <div
-            className={`p-3 rounded-xl border flex items-start space-x-2.5 text-xs ${
+            className={`p-3 rounded-xl border-2 flex items-start space-x-2.5 text-xs ${
               theme === 'dark'
                 ? 'bg-indigo-950/30 border-indigo-500/25 text-indigo-200'
-                : 'bg-indigo-50 border-indigo-200 text-indigo-950'
+                : 'bg-emerald-50 border-emerald-300 text-emerald-950'
             }`}
           >
-            <Quote className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+            <Quote className={`w-4 h-4 shrink-0 mt-0.5 ${theme === 'dark' ? 'text-indigo-400' : 'text-emerald-700'}`} />
             <div>
               <span className="font-bold">Source Excerpt Overlay:</span>{' '}
               <span>
                 Below is the exact text retrieved from{' '}
-                <strong className="font-semibold text-white dark:text-neutral-100">{citation.docName}</strong> (Page{' '}
+                <strong className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>{citation.docName}</strong> (Page{' '}
                 {citation.pageNumber}) used to synthesize the assistant response. Keywords matching your query are
                 visually highlighted.
               </span>
@@ -320,10 +335,10 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
 
           {/* Excerpt Box */}
           <div
-            className={`p-4 sm:p-5 rounded-xl border relative font-sans text-sm sm:text-base leading-relaxed select-text shadow-inner ${
+            className={`p-4 sm:p-5 rounded-xl border-2 relative font-sans text-sm sm:text-base leading-relaxed select-text ${
               theme === 'dark'
-                ? 'bg-[#0a0c12] border-neutral-800 text-neutral-200'
-                : 'bg-slate-50 border-slate-300 text-slate-800'
+                ? 'bg-[#0a0c12] border-neutral-800 text-neutral-200 shadow-inner'
+                : 'bg-white/95 border-emerald-300 text-slate-700 shadow-2xs'
             }`}
           >
             <div className="whitespace-pre-wrap">{renderHighlightedExcerpt(fullExcerpt)}</div>
@@ -332,10 +347,10 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
 
         {/* Action Footer */}
         <div
-          className={`px-4 sm:px-6 py-3 border-t flex flex-wrap items-center justify-between gap-2 shrink-0 ${
+          className={`px-4 sm:px-6 py-3 border-t-2 flex flex-wrap items-center justify-between gap-2 shrink-0 ${
             theme === 'dark'
               ? 'bg-[#151823] border-neutral-800 text-neutral-300'
-              : 'bg-slate-50 border-slate-200 text-slate-700'
+              : 'bg-[#dcf0e2] border-emerald-300 text-slate-700'
           }`}
         >
           <div className="text-xs text-neutral-500 flex items-center gap-1.5 font-mono">
@@ -348,18 +363,18 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
             <button
               type="button"
               onClick={handleCopy}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
+              className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
                 copied
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-emerald-950/20'
                   : theme === 'dark'
                     ? 'bg-neutral-800 hover:bg-neutral-750 text-neutral-200 hover:text-white border-neutral-700'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border-slate-300'
+                    : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-slate-800 border-emerald-300'
               }`}
             >
               {copied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Copied Excerpt!</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-700 font-semibold">Copied Excerpt!</span>
                 </>
               ) : (
                 <>
@@ -376,7 +391,11 @@ export const CitationExcerptOverlay: React.FC<CitationExcerptOverlayProps> = ({
                   onOpenInViewer(citation);
                   onClose();
                 }}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 transition-all cursor-pointer shadow-sm hover:shadow-indigo-500/25 active:scale-95"
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 border ${
+                  theme === 'dark'
+                    ? 'bg-indigo-600 hover:bg-indigo-500 border-indigo-500'
+                    : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700'
+                }`}
                 title="Jump to Document Viewer tab on this page"
               >
                 <ExternalLink className="w-3.5 h-3.5" />

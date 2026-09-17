@@ -1,4 +1,4 @@
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import * as pdfParseModule from "pdf-parse";
 import mammoth from "mammoth";
 import fs from "fs";
@@ -38,6 +38,34 @@ export function detectFileType(fileName: string): 'pdf' | 'docx' | 'image' | 'js
   return 'other';
 }
 
+// Cooldown map for degraded models experiencing 503 (high demand) or 429 (rate limits)
+const modelCooldownMap = new Map<string, number>();
+
+function isModelDegraded(model: string): boolean {
+  const expiresAt = modelCooldownMap.get(model);
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    modelCooldownMap.delete(model);
+    return false;
+  }
+  return true;
+}
+
+function markModelDegraded(model: string, durationMs = 180000) {
+  modelCooldownMap.set(model, Date.now() + durationMs);
+}
+
+function clearModelDegraded(model: string) {
+  modelCooldownMap.delete(model);
+}
+
+// Candidate standard models in optimal reliability order
+const ROBUST_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
+];
+
 // Helper to safely execute generateContent with model fallbacks, retry backoff, and timeouts
 async function callGeminiWithFallback(
   ai: GoogleGenAI,
@@ -48,37 +76,27 @@ async function callGeminiWithFallback(
     timeoutMs?: number;
   }
 ) {
-  // Use gemini-3.8-flash as primary model for high quality and speed, followed by flash fallbacks
-  const preferred = params.preferredModel || 'gemini-3.8-flash';
-  const modelsToTry = [
-    preferred,
-    'gemini-3.8-flash',
-    'gemini-flash-latest',
-    'gemini-3.1-flash-lite',
-    'gemini-3.1-pro-preview',
-  ];
+  // Use gemini-3.1-flash-lite as primary default for high availability and throughput
+  const preferred = params.preferredModel || 'gemini-3.1-flash-lite';
+  const initialList = [preferred, ...ROBUST_MODELS];
+  const uniqueModels = Array.from(new Set(initialList));
 
-  // Remove duplicates while preserving priority order
-  const uniqueModels = Array.from(new Set(modelsToTry));
+  // Prioritize healthy models over models currently on temporary cooldown
+  const healthyModels = uniqueModels.filter(m => !isModelDegraded(m));
+  const coolingModels = uniqueModels.filter(m => isModelDegraded(m));
+  const modelsToTry = [...healthyModels, ...coolingModels];
+
   let lastError: any = null;
 
   // 25s timeout per model attempt
   const timeoutMs = params.timeoutMs || 25000;
 
-  // Apply LOW thinkingLevel by default to minimize reasoning latency and avoid timeouts
-  const mergedConfig = {
-    ...params.config,
-    thinkingConfig: params.config?.thinkingConfig ?? {
-      thinkingLevel: ThinkingLevel.LOW,
-    },
-  };
-
-  for (const model of uniqueModels) {
+  for (const model of modelsToTry) {
     try {
       const generatePromise = ai.models.generateContent({
         model,
         contents: params.contents,
-        config: mergedConfig,
+        config: params.config,
       });
 
       const timeoutPromise = new Promise((_, reject) =>
@@ -90,12 +108,28 @@ async function callGeminiWithFallback(
 
       const response = (await Promise.race([generatePromise, timeoutPromise])) as any;
       if (response && response.text) {
+        clearModelDegraded(model);
         return response;
       }
     } catch (err: any) {
       lastError = err;
       const errStr = String(err) + (err?.message ? ` ${err.message}` : '');
-      console.warn(`[Gemini Resiliency] Model ${model} failed (${errStr.substring(0, 90)}...); shifting to fallback model.`);
+      const isHighDemandOrRateLimit =
+        err?.status === 503 ||
+        err?.status === 429 ||
+        err?.code === 503 ||
+        err?.code === 429 ||
+        errStr.includes("503") ||
+        errStr.includes("429") ||
+        errStr.includes("high demand") ||
+        errStr.includes("UNAVAILABLE");
+
+      if (isHighDemandOrRateLimit) {
+        markModelDegraded(model, 180000); // 3-minute cooldown
+        console.info(`[Gemini Resiliency] Model ${model} is experiencing temporary high demand; smoothly shifting to fallback model.`);
+      } else {
+        console.warn(`[Gemini Resiliency] Model ${model} failed (${errStr.substring(0, 90)}...); shifting to fallback model.`);
+      }
     }
   }
 
@@ -1183,7 +1217,7 @@ ${
   if (ai) {
     try {
       const response = await callGeminiWithFallback(ai, {
-        preferredModel: "gemini-3.8-flash",
+        preferredModel: "gemini-3.1-flash-lite",
         contents: prompt,
         config: {
           systemInstruction,
