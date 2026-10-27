@@ -1122,7 +1122,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           handleSubmit();
                         }
                       }}
-                      placeholder="Ask anything"
+                      placeholder="Upload and Ask"
                       disabled={isLoading || isUploading}
                       className={`bg-transparent border-0 text-sm sm:text-base focus:outline-none focus:ring-0 font-sans w-full leading-relaxed ${
                         theme === 'dark'
@@ -1435,7 +1435,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       type="text"
                       value={inputQuery}
                       onChange={(e) => setInputQuery(e.target.value)}
-                      placeholder="Ask anything"
+                      placeholder="Upload and Ask"
                       disabled={isLoading || isUploading}
                       className={`bg-transparent border-0 text-sm sm:text-base focus:outline-none focus:ring-0 font-sans w-full leading-relaxed ${
                         theme === 'dark'
